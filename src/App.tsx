@@ -35,6 +35,14 @@ export default function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [dbStatus, setDbStatus] = useState<{ connected: boolean, type: string, isPostgres: boolean, error?: string } | null>(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+
+  // Ցուցադրել տեղեկատվական պատուհանը կայք մտնելիս (15 վայրկյան)
+  useEffect(() => {
+    setShowInfoModal(true);
+    const timer = setTimeout(() => setShowInfoModal(false), 15000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Fetch products
   useEffect(() => {
