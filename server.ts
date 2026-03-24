@@ -200,7 +200,7 @@ async function startServer() {
   // Products
   app.get("/api/products", async (req, res) => {
     try {
-      const result = await query("SELECT * FROM products");
+      const result = await query("SELECT * FROM products ORDER BY id DESC");
       res.json(result.rows);
     } catch (error) {
       res.status(500).json({ error: "Database error" });
