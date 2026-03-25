@@ -24,7 +24,10 @@ export default function App() {
   const [category, setCategory] = useState<'sneakers' | 'slippers' | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+  const savedCart = localStorage.getItem('cart');
+  return savedCart ? JSON.parse(savedCart) : [];
+});
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
   const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
   const [adminAuth, setAdminAuth] = useState<string | null>(localStorage.getItem('adminPass'));
@@ -43,7 +46,10 @@ export default function App() {
     const timer = setTimeout(() => setShowInfoModal(false), 15000);
     return () => clearTimeout(timer);
   }, []);
-
+  // Պահպանել զամբյուղը localStorage-ում ամեն անգամ, երբ այն փոփոխվում է
+  useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(cart));
+  }, [cart]);
   // Fetch products
   useEffect(() => {
     fetch('/api/products')
