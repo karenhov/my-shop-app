@@ -15,7 +15,8 @@ import {
   X,
   User,
   Edit2,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import { Product, CartItem, PromoCode, Order } from './types';
 
