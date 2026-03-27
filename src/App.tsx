@@ -39,7 +39,8 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [dbStatus, setDbStatus] = useState<{ connected: boolean, type: string, isPostgres: boolean, error?: string } | null>(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
-
+  const [showOrderSuccess, setShowOrderSuccess] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   // Ցուցադրել տեղեկատվական պատուհանը կայք մտնելիս (15 վայրկյան)
   useEffect(() => {
     setShowInfoModal(true);
@@ -109,23 +110,34 @@ export default function App() {
     }
     return subtotal;
   };
-
-  const handleCheckout = async (customerData: any) => {
-    const total = calculateTotal();
-    const response = await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...customerData,
-        total_price: total,
-        items: cart
-      })
-    });
-    if (response.ok) {
-      showNotification('Պատվերը հաջողությամբ գրանցվեց');
-      setCart([]);
-      setAppliedPromo(null);
-      setView('home');
+ const handleCheckout = async (customerData: any) => {
+    if (cart.length === 0) return;
+    setIsCheckingOut(true);
+    try {
+      const total = calculateTotal();
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...customerData,
+          total_price: total,
+          items: cart
+        })
+      });
+      if (response.ok) {
+        setCart([]);
+        setAppliedPromo(null);
+        setView('home');
+        setShowOrderSuccess(true);
+        setTimeout(() => setShowOrderSuccess(false), 5000);
+      } else {
+        alert('Պատվերի գրանցումը ձախողվեց: Խնդրում ենք փորձել կրկին:');
+      }
+    } catch (error) {
+      console.error("Checkout failed:", error);
+      alert('Սերվերի սխալ: Խնդրում ենք փորձել մի փոքր ուշ:');
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -313,7 +325,24 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-
+      {/* Order Success Notification */}
+      <AnimatePresence>
+        {showOrderSuccess && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-6 pointer-events-none"
+          >
+            <div className="bg-gradient-to-br from-blue-600 to-orange-600 text-white px-8 py-6 rounded-[2.5rem] shadow-2xl flex flex-col items-center gap-4 text-center border border-white/20 backdrop-blur-xl max-w-xs w-full">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                <CheckCircle2 size={40} className="text-white" />
+              </div>
+              <h2 className="text-2xl font-black tracking-tighter uppercase italic leading-tight">ՁԵՐ ՊԱՏՎԵՐՆ ՀԱՍՏԱՏՎԵԼ Է</h2>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -600,7 +629,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  <CheckoutForm onSubmit={handleCheckout} />
+                 <CheckoutForm onSubmit={handleCheckout} isLoading={isCheckingOut} />
                 </div>
               )}
             </motion.div>
@@ -932,19 +961,31 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
   );
 }
 
-function CheckoutForm({ onSubmit }: { onSubmit: (data: any) => void }) {
+function CheckoutForm({ onSubmit, isLoading }: { onSubmit: (data: any) => void, isLoading: boolean }) {
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
+      if (isLoading) return;
       const formData = new FormData(e.target as HTMLFormElement);
       onSubmit(Object.fromEntries(formData));
     }} className="bg-white/5 p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-white/5 space-y-4">
       <h3 className="text-lg sm:text-xl font-bold mb-2 sm:mb-4">ՊԱՏՎԻՐԵԼ</h3>
-      <input name="customer_name" placeholder="Անուն Ազգանուն" required className="w-full bg-black border border-white/10 rounded-xl sm:rounded-2xl px-4 sm:px-6 py-3 sm:py-4 outline-none focus:border-blue-500 text-sm sm:text-base" />
-      <input name="customer_phone" placeholder="Հեռախոսահամար" required className="w-full bg-black border border-white/10 rounded-xl sm:rounded-2xl px-4 sm:px-6 py-3 sm:py-4 outline-none focus:border-blue-500 text-sm sm:text-base" />
-      <textarea name="customer_address" placeholder="Հասցե" required className="w-full bg-black border border-white/10 rounded-xl sm:rounded-2xl px-4 sm:px-6 py-3 sm:py-4 outline-none focus:border-blue-500 h-24 sm:h-32 text-sm sm:text-base" />
-      <button type="submit" className="w-full py-4 sm:py-5 bg-gradient-to-r from-blue-600 to-orange-500 rounded-xl sm:rounded-2xl font-black text-base sm:text-lg shadow-xl shadow-blue-500/20">
-        ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐԸ
+      <input name="customer_name" placeholder="Անուն Ազգանուն" required className="w-full bg-black border border-white/10 rounded-xl sm:rounded-2xl px-4 sm:px-6 py-3 sm:py-4 outline-none focus:border-blue-500 text-sm sm:text-base disabled:opacity-50" disabled={isLoading} />
+      <input name="customer_phone" placeholder="Հեռախոսահամար" required className="w-full bg-black border border-white/10 rounded-xl sm:rounded-2xl px-4 sm:px-6 py-3 sm:py-4 outline-none focus:border-blue-500 text-sm sm:text-base disabled:opacity-50" disabled={isLoading} />
+      <textarea name="customer_address" placeholder="Հասցե" required className="w-full bg-black border border-white/10 rounded-xl sm:rounded-2xl px-4 sm:px-6 py-3 sm:py-4 outline-none focus:border-blue-500 h-24 sm:h-32 text-sm sm:text-base disabled:opacity-50" disabled={isLoading} />
+      <button 
+        type="submit" 
+        disabled={isLoading}
+        className="w-full py-4 sm:py-5 bg-gradient-to-r from-blue-600 to-orange-500 rounded-xl sm:rounded-2xl font-black text-base sm:text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="animate-spin" size={20} />
+            ՄՇԱԿՎՈՒՄ Է...
+          </>
+        ) : (
+          'ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐԸ'
+        )}
       </button>
     </form>
   );
