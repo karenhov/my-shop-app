@@ -11,7 +11,6 @@ import {
   Settings, 
   LogOut,
   Search,
-  Menu,
   X,
   User,
   Edit2,
@@ -42,16 +41,19 @@ export default function App() {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+
   // Ցուցադրել տեղեկատվական պատուհանը կայք մտնելիս (15 վայրկյան)
   useEffect(() => {
     setShowInfoModal(true);
     const timer = setTimeout(() => setShowInfoModal(false), 15000);
     return () => clearTimeout(timer);
   }, []);
+
   // Պահպանել զամբյուղը localStorage-ում ամեն անգամ, երբ այն փոփոխվում է
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
+
   // Fetch products
   useEffect(() => {
     fetch('/api/products')
@@ -70,6 +72,13 @@ export default function App() {
       .catch(err => console.error("Failed to fetch db status:", err));
   }, []);
 
+  // ✅ Keep-alive ping — Render-ի free tier-ը կանխում է «քնելուց»
+  useEffect(() => {
+    const ping = () => fetch('/api/ping').catch(() => {});
+    const interval = setInterval(ping, 10 * 60 * 1000); // 10 րոպեն մեկ
+    return () => clearInterval(interval);
+  }, []);
+
   const showNotification = (message: string) => {
     setNotification(message);
     setTimeout(() => setNotification(null), 2000);
@@ -79,10 +88,8 @@ export default function App() {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
-        // Double the quantity if already in cart
         return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity * 2 } : item);
       }
-      // Use min_quantity as initial quantity
       const initialQty = product.min_quantity || 1;
       return [...prev, { ...product, quantity: initialQty }];
     });
@@ -111,7 +118,8 @@ export default function App() {
     }
     return subtotal;
   };
- const handleCheckout = async (customerData: any) => {
+
+  const handleCheckout = async (customerData: any) => {
     if (cart.length === 0) return;
     setIsCheckingOut(true);
     try {
@@ -170,7 +178,6 @@ export default function App() {
     localStorage.removeItem('adminPass');
   };
 
-  // Admin Actions
   const addProduct = async (productData: any) => {
     const response = await fetch('/api/products', {
       method: 'POST',
@@ -285,6 +292,7 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
       {/* Տեղեկատվական Պատուհան */}
       <AnimatePresence>
         {showInfoModal && (
@@ -296,26 +304,17 @@ export default function App() {
               className="max-w-md w-full bg-zinc-900 border border-white/10 rounded-[32px] p-8 shadow-2xl relative overflow-hidden"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-orange-500" />
-              
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
                   <ClipboardList size={20} />
                 </div>
                 <h2 className="text-xl font-black tracking-tight text-white uppercase">ՏԵՂԵԿԱՏՎՈՒԹՅՈՒՆ</h2>
               </div>
-
               <div className="space-y-4 text-white/80 leading-relaxed font-medium">
-                <p>
-                  ԱՊՐԱՆՔԸ ԸՆՏՐԵԼԻՍ ՊԵՏՔ Է ՍԵՂՄԵԼ <span className="text-orange-400 font-bold">ԱՎԵԼԱՑՆԵԼ</span> ԿՈՃԱԿԸ:
-                </p>
-                <p>
-                  ԱՅՆ ԿՀԱՅՏՆՎԻ <span className="text-blue-400 font-bold">ԶԱՄԲՅՈՒՂ</span> ԲԱԺՆՈՒՄ, ՈՐՏԵՂ ԿԱՐՈՂ ԵՔ ԱՎԵԼԱՑՆԵԼ ԸՆՏՐՎԱԾ ԱՊՐԱՆՔՆԵՐԻ ՔԱՆԱԿՆԵՐԸ:
-                </p>
-                <p>
-                  ԿԱՏԱՐԵԼ ՊԱՏՎԵՐ ՍԵՂՄԵԼՈՎ <span className="text-green-400 font-bold">ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐ</span> ԿՈՃԱԿԸ:
-                </p>
+                <p>ԱՊՐԱՆՔԸ ԸՆՏՐԵԼԻՍ ՊԵՏՔ Է ՍԵՂՄԵԼ <span className="text-orange-400 font-bold">ԱՎԵԼԱՑՆԵԼ</span> ԿՈՃԱԿԸ:</p>
+                <p>ԱՅՆ ԿՀԱՅՏՆՎԻ <span className="text-blue-400 font-bold">ԶԱՄԲՅՈՒՂ</span> ԲԱԺՆՈՒՄ, ՈՐՏԵՂ ԿԱՐՈՂ ԵՔ ԱՎԵԼԱՑՆԵԼ ԸՆՏՐՎԱԾ ԱՊՐԱՆՔՆԵՐԻ ՔԱՆԱԿՆԵՐԸ:</p>
+                <p>ԿԱՏԱՐԵԼ ՊԱՏՎԵՐ ՍԵՂՄԵԼՈՎ <span className="text-green-400 font-bold">ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐ</span> ԿՈՃԱԿԸ:</p>
               </div>
-
               <button 
                 onClick={() => setShowInfoModal(false)}
                 className="mt-8 w-full py-4 bg-white text-black rounded-2xl font-bold hover:bg-white/90 transition-colors"
@@ -326,6 +325,7 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
       {/* Order Success Notification */}
       <AnimatePresence>
         {showOrderSuccess && (
@@ -344,6 +344,7 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -466,14 +467,15 @@ export default function App() {
               exit={{ opacity: 0 }}
               className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[60vh]"
             >
+              {/* ✅ Optimized Unsplash URLs — w=800, q=75 */}
               <CategoryCard 
                 title="ՍՊՈՐՏԱՅԻՆ ԿՈՇԻԿՆԵՐ" 
-                image="https://images.unsplash.com/photo-1605348532760-6753d2c43329?q=80&w=1000&auto=format&fit=crop"
+                image="https://images.unsplash.com/photo-1605348532760-6753d2c43329?q=75&w=800&auto=format&fit=crop"
                 onClick={() => { setCategory('sneakers'); setView('products'); }}
               />
               <CategoryCard 
                 title="ՀՈՂԱԹԱՓԵՐ" 
-                image="https://images.unsplash.com/photo-1603487742131-4160ec999306?q=80&w=1000&auto=format&fit=crop"
+                image="https://images.unsplash.com/photo-1603487742131-4160ec999306?q=75&w=800&auto=format&fit=crop"
                 onClick={() => { setCategory('slippers'); setView('products'); }}
               />
             </motion.div>
@@ -560,7 +562,12 @@ export default function App() {
                 <div className="space-y-4 sm:space-y-6">
                   {cart.map(item => (
                     <div key={item.id} className="flex gap-3 sm:gap-4 bg-white/5 p-3 sm:p-4 rounded-2xl border border-white/5">
-                      <img src={item.image} alt={item.name} className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl" referrerPolicy="no-referrer" />
+                      {/* ✅ Cart image with skeleton */}
+                      <LazyImage
+                        src={item.image}
+                        alt={item.name}
+                        className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl flex-shrink-0"
+                      />
                       <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-sm sm:text-base truncate">{item.name}</h3>
                         <p className="text-[10px] sm:text-sm text-white/40">Կոդ: {item.code}</p>
@@ -702,7 +709,7 @@ export default function App() {
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {Array.isArray(products) && products.map(p => (
                           <div key={p.id} className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/5">
-                            <img src={p.image} className="w-16 h-16 object-cover rounded-lg" referrerPolicy="no-referrer" />
+                            <LazyImage src={p.image} alt={p.name} className="w-16 h-16 object-cover rounded-lg flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <p className="font-bold truncate">{p.name}</p>
                               <p className="text-xs text-white/40">{p.category === 'sneakers' ? 'Կոշիկ' : 'Հողաթափ'}</p>
@@ -766,7 +773,7 @@ export default function App() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {order.items.map(item => (
                               <div key={item.id} className="flex gap-3 bg-black/30 p-3 rounded-xl border border-white/5">
-                                <img src={item.image} className="w-12 h-12 object-cover rounded-lg" referrerPolicy="no-referrer" />
+                                <LazyImage src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded-lg flex-shrink-0" />
                                 <div>
                                   <p className="text-sm font-bold truncate">{item.name}</p>
                                   <p className="text-[10px] text-white/40">Կոդ: {item.code} | Քանակ: {item.quantity}</p>
@@ -832,37 +839,67 @@ export default function App() {
                       <div className="space-y-6">
                         <h3 className="text-xl font-bold">ՓՈԽԵԼ ԳԱՂՏՆԱԲԱՌԸ</h3>
                         <form onSubmit={async (e) => {
-                        e.preventDefault();
-                        const form = e.target as HTMLFormElement;
-                        const oldPassword = (form.elements.namedItem('old') as HTMLInputElement).value;
-                        const newPassword = (form.elements.namedItem('new') as HTMLInputElement).value;
-                        const response = await fetch('/api/admin/change-password', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ oldPassword, newPassword })
-                        });
-                        if (response.ok) {
-                          showNotification('Գաղտնաբառը փոխվեց');
-                          setAdminAuth(newPassword);
-                          localStorage.setItem('adminPass', newPassword);
-                          form.reset();
-                        } else {
-                          alert('Սխալ հին գաղտնաբառ');
-                        }
-                      }} className="space-y-4">
-                        <input name="old" type="password" placeholder="Հին գաղտնաբառ" required className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-blue-500" />
-                        <input name="new" type="password" placeholder="Նոր գաղտնաբառ" required className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-blue-500" />
-                        <button type="submit" className="w-full py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-bold">ՊԱՀՊԱՆԵԼ</button>
-                      </form>
+                          e.preventDefault();
+                          const form = e.target as HTMLFormElement;
+                          const oldPassword = (form.elements.namedItem('old') as HTMLInputElement).value;
+                          const newPassword = (form.elements.namedItem('new') as HTMLInputElement).value;
+                          const response = await fetch('/api/admin/change-password', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ oldPassword, newPassword })
+                          });
+                          if (response.ok) {
+                            showNotification('Գաղտնաբառը փոխվեց');
+                            setAdminAuth(newPassword);
+                            localStorage.setItem('adminPass', newPassword);
+                            form.reset();
+                          } else {
+                            alert('Սխալ հին գաղտնաբառ');
+                          }
+                        }} className="space-y-4">
+                          <input name="old" type="password" placeholder="Հին գաղտնաբառ" required className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-blue-500" />
+                          <input name="new" type="password" placeholder="Նոր գաղտնաբառ" required className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-blue-500" />
+                          <button type="submit" className="w-full py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-bold">ՊԱՀՊԱՆԵԼ</button>
+                        </form>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
+    </div>
+  );
+}
+
+// ✅ LazyImage — skeleton placeholder + smooth fade-in
+function LazyImage({ src, alt = '', className = '' }: { src: string, alt?: string, className?: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  return (
+    <div className={`relative overflow-hidden bg-white/5 ${className}`}>
+      {/* Skeleton shimmer */}
+      {!loaded && !error && (
+        <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-white/5 via-white/10 to-white/5" />
+      )}
+      {/* Error fallback */}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center text-white/20">
+          <Package size={24} />
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onLoad={() => setLoaded(true)}
+        onError={() => setError(true)}
+        className={`w-full h-full object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+      />
     </div>
   );
 }
@@ -898,18 +935,7 @@ function CategoryActionCard({ title, desc, color, onClick }: { title: string, de
   );
 }
 
-function FeatureItem({ icon, title, desc, color }: { icon: any, title: string, desc: string, color: string }) {
-  return (
-    <div className="flex flex-col items-center text-center">
-      <div className={`w-16 h-16 ${color} rounded-full flex items-center justify-center mb-4 shadow-lg`}>
-        {icon}
-      </div>
-      <h3 className="font-bold text-lg mb-1">{title}</h3>
-      <p className="text-sm text-white/40">{desc}</p>
-    </div>
-  );
-}
-
+// ✅ CategoryCard — LazyImage + skeleton
 function CategoryCard({ title, image, onClick }: { title: string, image: string, onClick: () => void }) {
   return (
     <motion.button 
@@ -918,7 +944,11 @@ function CategoryCard({ title, image, onClick }: { title: string, image: string,
       onClick={onClick}
       className="relative h-80 md:h-full rounded-[2rem] overflow-hidden group"
     >
-      <img src={image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
+      <LazyImage
+        src={image}
+        alt={title}
+        className="absolute inset-0 w-full h-full transition-transform duration-700 group-hover:scale-110"
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
       <div className="absolute bottom-8 left-8 text-left">
         <h3 className="text-3xl font-black tracking-tighter leading-none">{title}</h3>
@@ -928,17 +958,22 @@ function CategoryCard({ title, image, onClick }: { title: string, image: string,
   );
 }
 
+// ✅ ProductCard — skeleton + fade-in, removed whileInView delay
 function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, key?: any }) {
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
       className="bg-gradient-to-b from-white/10 to-white/[0.02] rounded-3xl border border-white/10 overflow-hidden flex flex-col hover:border-blue-500/30 transition-colors group"
     >
       <div className="aspect-square overflow-hidden relative">
-        <img src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
-        <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase border border-white/10">
+        <LazyImage
+          src={product.image}
+          alt={product.name}
+          className="absolute inset-0 w-full h-full transition-transform duration-700 group-hover:scale-110"
+        />
+        <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase border border-white/10 z-10">
           {product.code}
         </div>
       </div>
