@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShoppingCart, 
@@ -117,7 +117,7 @@ function AddProductForm({ onAdd, initialData, isEdit }: { onAdd: (data: any) => 
 function AddPromoForm({ onAdd }: { onAdd: (data: any) => void }) {
   return (
     <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.target as HTMLFormElement); const data = Object.fromEntries(formData); onAdd({ ...data, discount_percent: Number(data.discount_percent) }); (e.target as HTMLFormElement).reset(); }} className="bg-white/5 p-6 rounded-3xl border border-white/5 flex flex-wrap gap-4 items-end">
-      <div className="flex-1 min-w-[200px]"><label className="block text-xs text-white/40 mb-1 ml-2">ՊՐՈＭՈԿՈԴ</label><input name="code" placeholder="Օրինակ` SALE20" required className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500" /></div>
+      <div className="flex-1 min-w-[200px]"><label className="block text-xs text-white/40 mb-1 ml-2">ՊՐՈՄՈԿՈԴ</label><input name="code" placeholder="Օրինակ` SALE20" required className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500" /></div>
       <div className="w-32"><label className="block text-xs text-white/40 mb-1 ml-2">ԶԵՂՉ %</label><input name="discount_percent" type="number" placeholder="20" required className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500" /></div>
       <button type="submit" className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl font-bold h-[50px]">ԱՎԵԼԱՑՆԵԼ</button>
     </form>
@@ -146,6 +146,8 @@ export default function App() {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isChangingPass, setIsChangingPass] = useState(false);
+  const [passChangeData, setPassChangeData] = useState({ oldPass: '', newPass: '', confirmPass: '' });
 
   const optimizeImageUrl = (url: string, width = 400, quality = 80) => {
     if (!url) return '';
@@ -375,6 +377,44 @@ export default function App() {
     }
   };
 
+  const handleChangePassword = async (e: FormEvent) => {
+    e.preventDefault();
+    if (passChangeData.newPass !== passChangeData.confirmPass) {
+      alert('Նոր գաղտնաբառերը չեն համընկնում');
+      return;
+    }
+    if (passChangeData.newPass.length < 6) {
+      alert('Նոր գաղտնաբառը պետք է լինի առնվազն 6 նիշ');
+      return;
+    }
+
+    setIsChangingPass(true);
+    try {
+      const response = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          oldPassword: passChangeData.oldPass,
+          newPassword: passChangeData.newPass
+        })
+      });
+
+      if (response.ok) {
+        setAdminAuth(passChangeData.newPass);
+        localStorage.setItem('adminPass', passChangeData.newPass);
+        setPassChangeData({ oldPass: '', newPass: '', confirmPass: '' });
+        showNotification('Գաղտնաբառը հաջողությամբ փոխվեց');
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Գաղտնաբառի փոփոխությունը ձախողվեց');
+      }
+    } catch (error) {
+      alert('Սերվերի սխալ');
+    } finally {
+      setIsChangingPass(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-500/30 relative overflow-x-hidden">
       <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/15 blur-[120px] rounded-full pointer-events-none" />
@@ -413,7 +453,7 @@ export default function App() {
               </div>
               <div className="space-y-4 text-white/80 leading-relaxed font-medium">
                 <p>ԱՊՐԱՆՔԸ ԸՆՏՐԵԼԻՍ ՊԵՏՔ Է ՍԵՂՄԵԼ <span className="text-orange-400 font-bold">ԱՎԵԼԱՑՆԵԼ</span> ԿՈՃԱԿԸ:</p>
-                <p>ԱՅՆ ԿՀԱՅՏՆՎԻ <span className="text-blue-400 font-bold">ԶԱＭԲՅՈՒՂ</span> ԲԱԺՆՈՒՄ, ՈՐՏԵՂ ԿԱՐՈՂ ԵՔ ԱՎԵԼԱՑՆԵԼ ԸՆՏՐՎԱԾ ԱՊՐԱՆՔՆԵՐԻ ՔԱՆԱԿՆԵՐԸ:</p>
+                <p>ԱՅՆ ԿՀԱՅՏՆՎԻ <span className="text-blue-400 font-bold">ԶԱՄԲՅՈՒՂ</span> ԲԱԺՆՈՒՄ, ՈՐՏԵՂ ԿԱՐՈՂ ԵՔ ԱՎԵԼԱՑՆԵԼ ԸՆՏՐՎԱԾ ԱՊՐԱՆՔՆԵՐԻ ՔԱՆԱԿՆԵՐԸ:</p>
                 <p>ԿԱՏԱՐԵԼ ՊԱՏՎԵՐ ՍԵՂՄԵԼՈՎ <span className="text-green-400 font-bold">ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐ</span> ԿՈՃԱԿԸ:</p>
               </div>
               <button onClick={() => setShowInfoModal(false)} className="mt-8 w-full py-4 bg-white text-black rounded-2xl font-bold hover:bg-white/90 transition-colors">ՀԱՍԿԱՆԱԼԻ Է</button>
@@ -591,7 +631,7 @@ export default function App() {
             <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {!adminAuth ? (
                 <div className="max-w-sm mx-auto py-20">
-                  <h2 className="text-2xl font-bold mb-6 text-center">ԱԴＭԻՆ ՄՈՒՏՔ</h2>
+                  <h2 className="text-2xl font-bold mb-6 text-center">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
                   <div className="space-y-4">
                     <input type="password" placeholder="Գաղտնաբառ" value={adminPassInput} onChange={(e) => setAdminPassInput(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-blue-500" onKeyDown={(e) => { if (e.key === 'Enter') handleAdminLogin(adminPassInput); }} />
                     <button onClick={() => handleAdminLogin(adminPassInput)} disabled={isLoggingIn} className="w-full py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
@@ -676,6 +716,49 @@ export default function App() {
                           <div className="flex justify-between items-center"><span className="text-sm text-white/40">Տեսակ:</span><span className="text-sm font-medium">{dbStatus?.type || 'Բեռնվում է...'}</span></div>
                           <div className="flex justify-between items-center"><span className="text-sm text-white/40">Կարգավիճակ:</span><span className={`text-sm font-bold flex items-center gap-1 ${dbStatus?.connected ? 'text-green-500' : 'text-red-500'}`}>{dbStatus?.connected ? <><CheckCircle2 size={14} /> Միացված է</> : <><X size={14} /> Անջատված է</>}</span></div>
                         </div>
+                      </div>
+
+                      <div className="bg-white/5 p-6 rounded-3xl border border-white/5 space-y-4">
+                        <h3 className="text-lg font-bold flex items-center gap-2"><User size={20} className="text-orange-400" /> ԳԱՂՏՆԱԲԱՌԻ ՓՈՓՈԽՈՒԹՅՈՒՆ</h3>
+                        <form onSubmit={handleChangePassword} className="space-y-4">
+                          <div>
+                            <label className="block text-xs text-white/40 mb-1 ml-2">ՀԻՆ ԳԱՂՏՆԱԲԱՌ</label>
+                            <input 
+                              type="password" 
+                              required
+                              value={passChangeData.oldPass}
+                              onChange={(e) => setPassChangeData({ ...passChangeData, oldPass: e.target.value })}
+                              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500" 
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-white/40 mb-1 ml-2">ՆՈՐ ԳԱՂՏՆԱԲԱՌ</label>
+                            <input 
+                              type="password" 
+                              required
+                              value={passChangeData.newPass}
+                              onChange={(e) => setPassChangeData({ ...passChangeData, newPass: e.target.value })}
+                              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500" 
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-white/40 mb-1 ml-2">ՀԱՍՏԱՏԵԼ ՆՈՐ ԳԱՂՏՆԱԲԱՌԸ</label>
+                            <input 
+                              type="password" 
+                              required
+                              value={passChangeData.confirmPass}
+                              onChange={(e) => setPassChangeData({ ...passChangeData, confirmPass: e.target.value })}
+                              className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500" 
+                            />
+                          </div>
+                          <button 
+                            type="submit" 
+                            disabled={isChangingPass}
+                            className="w-full py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-xl font-bold disabled:opacity-50"
+                          >
+                            {isChangingPass ? 'ՄՇԱԿՎՈՒՄ Է...' : 'ՓՈԽԵԼ ԳԱՂՏՆԱԲԱՌԸ'}
+                          </button>
+                        </form>
                       </div>
                     </div>
                   )}
