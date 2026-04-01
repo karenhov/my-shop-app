@@ -75,7 +75,7 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
           <p className="text-sm sm:text-xl font-black text-white">{product.price.toLocaleString()} ֏</p>
           <button onClick={onAdd} className="w-full xs:w-auto px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-br from-blue-600 to-orange-500 rounded-xl sm:rounded-2xl hover:shadow-lg hover:shadow-orange-500/20 transition-all active:scale-90 flex items-center justify-center gap-1.5">
             {(product.category === 'sneakers' || product.category === 'slippers') ? (
-              <><ShoppingCart size={12} className="sm:size-[14px]" /><span className="text-[10px] sm:text-xs font-bold">Գնել</span></>
+              <><ShoppingCart size={12} className="sm:size-[14px]" /><span className="text-[10px] sm:text-xs font-bold">Ուղղարկել զամբյուղ</span></>
             ) : (
               <span className="text-[10px] sm:text-xs font-bold">Ավելացնել</span>
             )}
