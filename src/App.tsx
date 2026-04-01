@@ -51,20 +51,10 @@ function CategoryCard({ title, image, onClick }: { title: string, image: string,
 }
 
 function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, key?: any }) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const optimizeImageUrl = (url: string, width = 400, quality = 80) => {
-    if (!url) return '';
-    if (url.includes('unsplash.com')) {
-      const baseUrl = url.split('?')[0];
-      return `${baseUrl}?q=${quality}&w=${width}&auto=format&fit=crop`;
-    }
-    return url;
-  };
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="bg-gradient-to-b from-white/10 to-white/[0.02] rounded-2xl sm:rounded-3xl border border-white/10 overflow-hidden flex flex-col hover:border-blue-500/30 transition-colors group">
       <div className="aspect-square overflow-hidden relative bg-zinc-900">
-        {!isLoaded && <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 animate-pulse"><ImageIcon className="text-white/10" size={24} /></div>}
-        <img src={optimizeImageUrl(product.image, 400)} alt={product.name} onLoad={() => setIsLoaded(true)} className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-110 ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`} referrerPolicy="no-referrer" />
+        <img src={product.image} alt={product.name} loading="eager" fetchPriority="high" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
         <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/60 backdrop-blur-md px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-bold tracking-widest uppercase border border-white/10">{product.code}</div>
       </div>
       <div className="p-3 sm:p-5 flex-1 flex flex-col">
@@ -178,7 +168,18 @@ export default function App() {
   useEffect(() => {
     fetch('/api/products')
       .then(res => res.json())
-      .then(data => Array.isArray(data) && setProducts(data))
+      .then(data => {
+        if (Array.isArray(data)) {
+          setProducts(data);
+          // Preload all product images immediately
+          data.forEach((product: Product) => {
+            if (product.image) {
+              const img = new Image();
+              img.src = product.image;
+            }
+          });
+        }
+      })
       .catch(err => console.error("Failed to fetch products:", err));
     
     fetch('/api/promo-codes')
