@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, useRef, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShoppingCart, 
@@ -147,6 +147,7 @@ export default function App() {
   const [adminView, setAdminView] = useState<'products' | 'promo' | 'orders' | 'settings'>('products');
   const [orders, setOrders] = useState<Order[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
+  const notificationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [dbStatus, setDbStatus] = useState<{ connected: boolean, type: string, isPostgres: boolean, error?: string } | null>(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -192,18 +193,19 @@ export default function App() {
   }, []);
 
   const showNotification = (message: string) => {
+    if (notificationTimer.current) clearTimeout(notificationTimer.current);
     setNotification(message);
-    setTimeout(() => setNotification(null), 2000);
+    notificationTimer.current = setTimeout(() => setNotification(null), 2000);
   };
 
   const addToCart = (product: Product) => {
+    const step = product.min_quantity || 1;
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + step } : item);
       }
-      const initialQty = product.min_quantity || 1;
-      return [...prev, { ...product, quantity: initialQty }];
+      return [...prev, { ...product, quantity: step }];
     });
     showNotification('Ավելացվեց զամբյուղ');
   };
@@ -458,7 +460,7 @@ export default function App() {
                 <h2 className="text-xl font-black tracking-tight text-white uppercase">ՏԵՂԵԿԱՏՎՈՒԹՅՈՒՆ</h2>
               </div>
               <div className="space-y-4 text-white/80 leading-relaxed font-medium">
-                <p>ԱՊՐԱՆՔԸ ԸՆՏՐԵԼԻՍ ՊԵՏՔ Է ՍԵՂՄԵԼ <span className="text-orange-400 font-bold">Ուղղարկել զամբյուղ</span> ԿՈՃԱԿԸ:</p>
+                <p>ԱՊՐԱՆՔԸ ԸՆՏՐԵԼԻՍ ՊԵՏՔ Է ՍԵՂՄԵԼ <span className="text-orange-400 font-bold">ԳՆԵԼ</span> ԿՈՃԱԿԸ:</p>
                 <p>ԱՅՆ ԿՀԱՅՏՆՎԻ <span className="text-blue-400 font-bold">ԶԱՄԲՅՈՒՂ</span> ԲԱԺՆՈՒՄ, ՈՐՏԵՂ ԿԱՐՈՂ ԵՔ ԱՎԵԼԱՑՆԵԼ ԸՆՏՐՎԱԾ ԱՊՐԱՆՔՆԵՐԻ ՔԱՆԱԿՆԵՐԸ:</p>
                 <p>ԿԱՏԱՐԵԼ ՊԱՏՎԵՐ ՍԵՂՄԵԼՈՎ <span className="text-green-400 font-bold">ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐ</span> ԿՈՃԱԿԸ:</p>
               </div>
