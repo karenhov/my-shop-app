@@ -512,7 +512,7 @@ export default function App() {
                 </h1>
                 <p className="text-white/70 max-w-2xl mb-10 text-base sm:text-lg font-medium leading-relaxed">Բարձրորակ ապրանքներ ձեր բիզնեսի համար: Արագ առաքում և լավագույն գներ:</p>
                 <button onClick={() => setView('categories')} className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-br from-blue-600 to-orange-600 rounded-2xl font-bold text-sm sm:text-lg hover:scale-105 transition-all active:scale-95 shadow-xl shadow-orange-500/20 flex items-center justify-center gap-3 border border-white/10">
-                  <ShoppingCart size={20} /> Դիտել ապրանքները
+                  <ShoppingCart size={20} /> Դիտել Տեսականին
                 </button>
               </div>
 
