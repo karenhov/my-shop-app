@@ -71,11 +71,11 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
         <h3 className="font-bold text-sm sm:text-lg mb-1 truncate group-hover:text-blue-400 transition-colors">{product.name}</h3>
         <p className="text-white/40 text-[10px] sm:text-xs mb-2 line-clamp-2">{product.description}</p>
         {product.min_quantity && product.min_quantity > 1 && <p className="text-[8px] sm:text-[10px] text-orange-400/80 font-bold mb-3 sm:mb-4 bg-orange-400/10 w-fit px-1.5 py-0.5 rounded-md">ՄԻՆ. ՔԱՆԱԿ: {product.min_quantity}</p>}
-        <div className="mt-auto flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2">
+        <div className="mt-auto flex flex-col gap-2">
           <p className="text-sm sm:text-xl font-black text-white">{product.price.toLocaleString()} ֏</p>
-          <button onClick={onAdd} className="w-full xs:w-auto px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-br from-blue-600 to-orange-500 rounded-xl sm:rounded-2xl hover:shadow-lg hover:shadow-orange-500/20 transition-all active:scale-90 flex items-center justify-center gap-1.5">
+          <button onClick={onAdd} className="w-full py-2 sm:py-2.5 bg-gradient-to-br from-blue-600 to-orange-500 rounded-xl sm:rounded-2xl hover:shadow-lg hover:shadow-orange-500/20 transition-all active:scale-90 flex items-center justify-center gap-1.5">
             {(product.category === 'sneakers' || product.category === 'slippers') ? (
-              <><ShoppingCart size={12} className="sm:size-[14px]" /><span className="text-[10px] sm:text-xs font-bold">Ուղղարկել զամբյուղ</span></>
+              <><span className="text-[9px] xs:text-[10px] sm:text-xs font-bold leading-none">Ուղղարկել զամբյուղ</span><ShoppingCart size={11} className="xs:size-3 sm:size-[13px] shrink-0" /></>
             ) : (
               <span className="text-[10px] sm:text-xs font-bold">Ավելացնել</span>
             )}
@@ -458,7 +458,7 @@ export default function App() {
                 <h2 className="text-xl font-black tracking-tight text-white uppercase">ՏԵՂԵԿԱՏՎՈՒԹՅՈՒՆ</h2>
               </div>
               <div className="space-y-4 text-white/80 leading-relaxed font-medium">
-                <p>ԱՊՐԱՆՔԸ ԸՆՏՐԵԼԻՍ ՊԵՏՔ Է ՍԵՂՄԵԼ <span className="text-orange-400 font-bold">ԳՆԵԼ</span> ԿՈՃԱԿԸ:</p>
+                <p>ԱՊՐԱՆՔԸ ԸՆՏՐԵԼԻՍ ՊԵՏՔ Է ՍԵՂՄԵԼ <span className="text-orange-400 font-bold">Ուղղարկել զամբյուղ</span> ԿՈՃԱԿԸ:</p>
                 <p>ԱՅՆ ԿՀԱՅՏՆՎԻ <span className="text-blue-400 font-bold">ԶԱՄԲՅՈՒՂ</span> ԲԱԺՆՈՒՄ, ՈՐՏԵՂ ԿԱՐՈՂ ԵՔ ԱՎԵԼԱՑՆԵԼ ԸՆՏՐՎԱԾ ԱՊՐԱՆՔՆԵՐԻ ՔԱՆԱԿՆԵՐԸ:</p>
                 <p>ԿԱՏԱՐԵԼ ՊԱՏՎԵՐ ՍԵՂՄԵԼՈՎ <span className="text-green-400 font-bold">ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐ</span> ԿՈՃԱԿԸ:</p>
               </div>
