@@ -474,6 +474,11 @@ async function startServer() {
     }
   });
 
+  // Health check endpoint (for cron-job.org keep-alive pings)
+  app.get("/health", (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
