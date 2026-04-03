@@ -21,6 +21,7 @@ import {
   Share2
 } from 'lucide-react';
 import { Product, CartItem, PromoCode, Order } from './types';
+import { toPng } from 'html-to-image';
 
 // ---- Share Cart via Viber / WhatsApp / Telegram ----
 function ShareCartButtons({ cartSectionRef, cart, total }: {
@@ -33,39 +34,18 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
 
   if (cart.length === 0) return null;
 
-  const loadHtml2Canvas = async () => {
-    if ((window as any).html2canvas) return (window as any).html2canvas;
-    await new Promise<void>((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('html2canvas load failed'));
-      document.head.appendChild(script);
-    });
-    return (window as any).html2canvas;
-  };
-
   const captureAndShare = async (platform: 'viber' | 'whatsapp' | 'telegram') => {
     if (!cartSectionRef.current) return;
     setIsCapturing(true);
     setStatusMsg('Նկարը ստեղծվում է...');
     try {
-      const h2c = await loadHtml2Canvas();
-
-      // Capture the cart section element
-      const canvas = await h2c(cartSectionRef.current, {
+      const dataUrl = await toPng(cartSectionRef.current, {
         backgroundColor: '#09090b',
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        ignoreElements: (el: HTMLElement) => el.dataset.shareIgnore === 'true',
+        pixelRatio: 2,
+        filter: (node: HTMLElement) => node.dataset?.shareIgnore !== 'true',
       });
 
-      const dataUrl = canvas.toDataURL('image/png');
-
       setStatusMsg('Վերբեռնվում է...');
-      // Upload to server and get a public URL
       const response = await fetch('/api/upload-cart-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -98,8 +78,8 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
   };
 
   return (
-    <div className="bg-white/5 p-4 sm:p-5 rounded-2xl border border-white/10 space-y-3" data-share-ignore="true">
-      <p className="text-xs sm:text-sm font-bold text-white/60 flex items-center gap-2">
+    <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)' }} className="p-4 sm:p-5 rounded-2xl space-y-3" data-share-ignore="true">
+      <p className="text-xs sm:text-sm font-bold flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.6)' }}>
         <Share2 size={14} /> ԿԻՍՎԵԼ ԶԱՄԲՅՈՒՂՈՎ
       </p>
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -142,7 +122,7 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
         </button>
       </div>
       {isCapturing || statusMsg ? (
-        <p className="text-center text-[11px] text-white/50 flex items-center justify-center gap-1.5 pt-1">
+        <p className="text-center text-[11px] flex items-center justify-center gap-1.5 pt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
           {isCapturing && <Loader2 size={11} className="animate-spin" />}
           {statusMsg}
         </p>
@@ -164,43 +144,33 @@ function NavShareButtons({ cartSectionRef, cart, total }: {
   // Եթե զամբյուղ դատարկ է — չերևա
   if (cart.length === 0) {
     return (
-      <button
-        onClick={() => {}}
-        className="sm:hidden flex items-center gap-1.5 text-xs font-bold text-white/40 px-2 py-1 rounded-xl"
-        style={{ pointerEvents: 'none' }}
-      >
-        <Share2 size={13} /> Կիսվել
-      </button>
+      <div className="sm:hidden flex-1 min-w-0 flex items-center gap-1.5">
+        <Share2 size={13} style={{ color: '#f97316', flexShrink: 0 }} />
+        <span
+          className="text-xs font-black tracking-tight leading-tight"
+          style={{
+            background: 'linear-gradient(to right, #3b82f6, #f97316)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
+          Կիսվել<br/>Զամբյուղով
+        </span>
+      </div>
     );
   }
-
-  const loadHtml2Canvas = async () => {
-    if ((window as any).html2canvas) return (window as any).html2canvas;
-    await new Promise<void>((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('html2canvas load failed'));
-      document.head.appendChild(script);
-    });
-    return (window as any).html2canvas;
-  };
 
   const captureAndShare = async (platform: 'viber' | 'whatsapp' | 'telegram') => {
     if (!cartSectionRef.current) return;
     setIsCapturing(true);
     setStatusMsg('Ստեղծվում...');
     try {
-      const h2c = await loadHtml2Canvas();
-      const canvas = await h2c(cartSectionRef.current, {
+      const dataUrl = await toPng(cartSectionRef.current, {
         backgroundColor: '#09090b',
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        ignoreElements: (el: HTMLElement) => el.dataset.shareIgnore === 'true',
+        pixelRatio: 2,
+        filter: (node: HTMLElement) => node.dataset?.shareIgnore !== 'true',
       });
-      const dataUrl = canvas.toDataURL('image/png');
       setStatusMsg('Վերբեռնում...');
       const response = await fetch('/api/upload-cart-image', {
         method: 'POST',
@@ -212,8 +182,7 @@ function NavShareButtons({ cartSectionRef, cart, total }: {
       setStatusMsg('Բացվում...');
       const text = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏`);
       const encodedUrl = encodeURIComponent(imageUrl);
-      const fullMsg = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏
-${imageUrl}`);
+      const fullMsg = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏\n${imageUrl}`);
       const urls: Record<string, string> = {
         viber:    `viber://forward?text=${fullMsg}`,
         whatsapp: `https://wa.me/?text=${fullMsg}`,
@@ -230,48 +199,49 @@ ${imageUrl}`);
   };
 
   return (
-    <div className="sm:hidden flex items-center gap-1 flex-1 min-w-0">
-      {/* Status message */}
-      {(isCapturing || statusMsg) && (
-        <span className="flex items-center gap-1 text-[10px] text-white/50 mr-1 shrink-0">
-          {isCapturing && <Loader2 size={10} className="animate-spin" />}
-          {statusMsg}
-        </span>
-      )}
-      {/* 3 կոճակ */}
+    <div className="sm:hidden flex items-center gap-1.5 flex-1 min-w-0">
+      {/* Share label + status */}
+      <span className="flex items-center gap-1 text-[10px] font-bold shrink-0 min-w-[62px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+        {isCapturing ? (
+          <><Loader2 size={11} className="animate-spin shrink-0" /><span className="leading-tight">{statusMsg}</span></>
+        ) : statusMsg ? (
+          <span className="leading-tight">{statusMsg}</span>
+        ) : (
+          <><Share2 size={11} className="shrink-0" /><span className="leading-tight">Կիսվել<br/>Զամբյուղով</span></>
+        )}
+      </span>
+
+      {/* Icon-only կոճակներ */}
       <button
         onClick={() => captureAndShare('viber')}
         disabled={isCapturing}
-        className="flex items-center gap-1 px-2 py-1.5 rounded-lg disabled:opacity-50 active:scale-95 transition-all shrink-0"
-        style={{ background: '#7360f2' }}
+        className="flex items-center justify-center p-2 rounded-xl active:scale-90 transition-all shrink-0"
+        style={{ background: '#7360f2', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
       >
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
           <path d="M11.4 1C6.07 1 2 4.96 2 10.3c0 3.3 1.72 6.24 4.4 7.95V21l3.37-1.85c.56.15 1.14.23 1.75.23 5.32 0 9.48-3.96 9.48-9.08C21 4.96 16.72 1 11.4 1zm.94 12.24l-2.4-2.56-4.7 2.56 5.17-5.5 2.47 2.56 4.63-2.56-5.17 5.5z"/>
         </svg>
-        <span className="text-white text-[10px] font-bold">Viber</span>
       </button>
       <button
         onClick={() => captureAndShare('whatsapp')}
         disabled={isCapturing}
-        className="flex items-center gap-1 px-2 py-1.5 rounded-lg disabled:opacity-50 active:scale-95 transition-all shrink-0"
-        style={{ background: '#25d366' }}
+        className="flex items-center justify-center p-2 rounded-xl active:scale-90 transition-all shrink-0"
+        style={{ background: '#25d366', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
       >
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
           <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.48-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51l-.57-.01c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.87 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.69.25-1.28.17-1.41-.07-.12-.27-.2-.57-.34z"/>
           <path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.37 5.07L2 22l5.1-1.34C8.48 21.53 10.21 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.71 0-3.3-.46-4.67-1.26l-.33-.2-3.03.8.81-2.96-.22-.35C3.46 15.25 3 13.68 3 12c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9z"/>
         </svg>
-        <span className="text-white text-[10px] font-bold">WA</span>
       </button>
       <button
         onClick={() => captureAndShare('telegram')}
         disabled={isCapturing}
-        className="flex items-center gap-1 px-2 py-1.5 rounded-lg disabled:opacity-50 active:scale-95 transition-all shrink-0"
-        style={{ background: '#2aabee' }}
+        className="flex items-center justify-center p-2 rounded-xl active:scale-90 transition-all shrink-0"
+        style={{ background: '#2aabee', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
       >
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8l-1.69 7.97c-.12.57-.46.71-.94.44l-2.58-1.9-1.24 1.2c-.14.14-.26.26-.52.26l.18-2.63 4.72-4.27c.2-.18-.05-.28-.32-.1L7.4 14.47l-2.51-.78c-.55-.17-.56-.55.12-.82l9.82-3.79c.46-.17.86.11.81.72z"/>
         </svg>
-        <span className="text-white text-[10px] font-bold">TG</span>
       </button>
     </div>
   );
