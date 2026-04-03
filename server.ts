@@ -487,7 +487,26 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, "dist")));
+    app.use(express.static(path.join(__dirname, "dist"), {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    // HTML ֆայլեր — ԵՐԲԵՔ cache չանել
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    // JS/CSS ֆայլեր — երկար cache (Vite-ը hash ավելացնում է անվան մեջ)
+    else if (filePath.match(/\.(js|css)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+    // Նկարներ
+    else if (filePath.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+  }
+}));
     app.get("*", (req, res) => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
