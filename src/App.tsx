@@ -52,59 +52,6 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
     try {
       const h2c = await loadHtml2Canvas();
 
-      // oklch գույները hex-ով փոխարինելու helper
-      const replaceOklchColors = (element: HTMLElement) => {
-        const allElements = [element, ...Array.from(element.querySelectorAll('*'))] as HTMLElement[];
-        const oklchToHex: Record<string, string> = {
-          // Tailwind v4 default oklch colors → hex fallbacks
-          'oklch(0% 0 0)': '#000000',
-          'oklch(100% 0 0)': '#ffffff',
-          'oklch(14.5% 0 0)': '#181818',
-          'oklch(21% 0 0)': '#272727',
-          'oklch(26.9% 0 0)': '#333333',
-          'oklch(37% 0 0)': '#484848',
-          'oklch(55.3% 0 0)': '#717171',
-          'oklch(70.8% 0 0)': '#a0a0a0',
-          'oklch(87.2% 0 0)': '#d4d4d4',
-          'oklch(96.7% 0 0)': '#f5f5f5',
-          'oklch(98.5% 0 0)': '#fafafa',
-        };
-
-        allElements.forEach(el => {
-          const computed = window.getComputedStyle(el);
-          const props = ['color', 'background-color', 'border-color', 'border-top-color', 
-                        'border-right-color', 'border-bottom-color', 'border-left-color',
-                        'outline-color', 'box-shadow'];
-          props.forEach(prop => {
-            const val = computed.getPropertyValue(prop);
-            if (val && val.includes('oklch')) {
-              // Convert oklch to rgba by letting browser compute it, then override
-              el.style.setProperty(prop, val.replace(/oklch\([^)]+\)/g, (match) => {
-                return oklchToHex[match] || '#888888';
-              }));
-            }
-          });
-
-          // Also handle inline styles and CSS variables
-          const style = el.getAttribute('style') || '';
-          if (style.includes('oklch')) {
-            el.setAttribute('style', style.replace(/oklch\([^)]+\)/g, '#888888'));
-          }
-        });
-
-        // Override all CSS custom properties in :root that use oklch
-        const styleOverride = element.ownerDocument.createElement('style');
-        styleOverride.textContent = `
-          * { 
-            --tw-ring-color: rgba(59, 130, 246, 0.5) !important;
-          }
-          [class*="bg-white\\/"] { background-color: rgba(255,255,255,0.05) !important; }
-          [class*="border-white\\/"] { border-color: rgba(255,255,255,0.1) !important; }
-          [class*="text-white\\/"] { color: rgba(255,255,255,0.6) !important; }
-        `;
-        element.ownerDocument.head.appendChild(styleOverride);
-      };
-
       // Capture the cart section element
       const canvas = await h2c(cartSectionRef.current, {
         backgroundColor: '#09090b',
@@ -113,9 +60,6 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
         allowTaint: true,
         logging: false,
         ignoreElements: (el: HTMLElement) => el.dataset.shareIgnore === 'true',
-        onclone: (_doc: Document, element: HTMLElement) => {
-          replaceOklchColors(element);
-        },
       });
 
       const dataUrl = canvas.toDataURL('image/png');
@@ -144,12 +88,11 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
   };
 
   const openPlatform = (platform: 'viber' | 'whatsapp' | 'telegram', imageUrl: string) => {
-    const text = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏`);
-    const encodedUrl = encodeURIComponent(imageUrl);
+    const msg = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏\n${imageUrl}`);
     const urls: Record<string, string> = {
-      viber:    `viber://forward?text=${encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏\n${imageUrl}`)}`,
-      whatsapp: `https://wa.me/?text=${encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏\n${imageUrl}`)}`,
-      telegram: `https://t.me/share/url?url=${encodedUrl}&text=${text}`,
+      viber:    `viber://forward?text=${msg}`,
+      whatsapp: `https://wa.me/?text=${msg}`,
+      telegram: `https://t.me/share/url?url=${encodeURIComponent(imageUrl)}&text=${encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏`)}`,
     };
     window.open(urls[platform], '_blank');
   };
@@ -204,6 +147,132 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
           {statusMsg}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+// ── Nav-ի մեջ փոքր share կոճակներ (միայն mobile, cart view-ում) ──
+function NavShareButtons({ cartSectionRef, cart, total }: {
+  cartSectionRef: React.RefObject<HTMLDivElement>,
+  cart: CartItem[],
+  total: number
+}) {
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
+
+  // Desktop-ում չերևա (sm: և ավելի)
+  // Եթե զամբյուղ դատարկ է — չերևա
+  if (cart.length === 0) {
+    return (
+      <button
+        onClick={() => {}}
+        className="sm:hidden flex items-center gap-1.5 text-xs font-bold text-white/40 px-2 py-1 rounded-xl"
+        style={{ pointerEvents: 'none' }}
+      >
+        <Share2 size={13} /> Կիսվել
+      </button>
+    );
+  }
+
+  const loadHtml2Canvas = async () => {
+    if ((window as any).html2canvas) return (window as any).html2canvas;
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('html2canvas load failed'));
+      document.head.appendChild(script);
+    });
+    return (window as any).html2canvas;
+  };
+
+  const captureAndShare = async (platform: 'viber' | 'whatsapp' | 'telegram') => {
+    if (!cartSectionRef.current) return;
+    setIsCapturing(true);
+    setStatusMsg('Ստեղծվում...');
+    try {
+      const h2c = await loadHtml2Canvas();
+      const canvas = await h2c(cartSectionRef.current, {
+        backgroundColor: '#09090b',
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        ignoreElements: (el: HTMLElement) => el.dataset.shareIgnore === 'true',
+      });
+      const dataUrl = canvas.toDataURL('image/png');
+      setStatusMsg('Վերբեռնում...');
+      const response = await fetch('/api/upload-cart-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl }),
+      });
+      if (!response.ok) throw new Error('Upload failed');
+      const { url: imageUrl } = await response.json();
+      setStatusMsg('Բացվում...');
+      const text = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏`);
+      const encodedUrl = encodeURIComponent(imageUrl);
+      const fullMsg = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏
+${imageUrl}`);
+      const urls: Record<string, string> = {
+        viber:    `viber://forward?text=${fullMsg}`,
+        whatsapp: `https://wa.me/?text=${fullMsg}`,
+        telegram: `https://t.me/share/url?url=${encodedUrl}&text=${text}`,
+      };
+      window.open(urls[platform], '_blank');
+    } catch (err) {
+      setStatusMsg('Սխալ');
+      setTimeout(() => setStatusMsg(''), 2000);
+    } finally {
+      setIsCapturing(false);
+      setTimeout(() => setStatusMsg(''), 2000);
+    }
+  };
+
+  return (
+    <div className="sm:hidden flex items-center gap-1 flex-1 min-w-0">
+      {/* Status message */}
+      {(isCapturing || statusMsg) && (
+        <span className="flex items-center gap-1 text-[10px] text-white/50 mr-1 shrink-0">
+          {isCapturing && <Loader2 size={10} className="animate-spin" />}
+          {statusMsg}
+        </span>
+      )}
+      {/* 3 կոճակ */}
+      <button
+        onClick={() => captureAndShare('viber')}
+        disabled={isCapturing}
+        className="flex items-center gap-1 px-2 py-1.5 rounded-lg disabled:opacity-50 active:scale-95 transition-all shrink-0"
+        style={{ background: '#7360f2' }}
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
+          <path d="M11.4 1C6.07 1 2 4.96 2 10.3c0 3.3 1.72 6.24 4.4 7.95V21l3.37-1.85c.56.15 1.14.23 1.75.23 5.32 0 9.48-3.96 9.48-9.08C21 4.96 16.72 1 11.4 1zm.94 12.24l-2.4-2.56-4.7 2.56 5.17-5.5 2.47 2.56 4.63-2.56-5.17 5.5z"/>
+        </svg>
+        <span className="text-white text-[10px] font-bold">Viber</span>
+      </button>
+      <button
+        onClick={() => captureAndShare('whatsapp')}
+        disabled={isCapturing}
+        className="flex items-center gap-1 px-2 py-1.5 rounded-lg disabled:opacity-50 active:scale-95 transition-all shrink-0"
+        style={{ background: '#25d366' }}
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
+          <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.48-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51l-.57-.01c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.87 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.69.25-1.28.17-1.41-.07-.12-.27-.2-.57-.34z"/>
+          <path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.37 5.07L2 22l5.1-1.34C8.48 21.53 10.21 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.71 0-3.3-.46-4.67-1.26l-.33-.2-3.03.8.81-2.96-.22-.35C3.46 15.25 3 13.68 3 12c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9z"/>
+        </svg>
+        <span className="text-white text-[10px] font-bold">WA</span>
+      </button>
+      <button
+        onClick={() => captureAndShare('telegram')}
+        disabled={isCapturing}
+        className="flex items-center gap-1 px-2 py-1.5 rounded-lg disabled:opacity-50 active:scale-95 transition-all shrink-0"
+        style={{ background: '#2aabee' }}
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8l-1.69 7.97c-.12.57-.46.71-.94.44l-2.58-1.9-1.24 1.2c-.14.14-.26.26-.52.26l.18-2.63 4.72-4.27c.2-.18-.05-.28-.32-.1L7.4 14.47l-2.51-.78c-.55-.17-.56-.55.12-.82l9.82-3.79c.46-.17.86.11.81.72z"/>
+        </svg>
+        <span className="text-white text-[10px] font-bold">TG</span>
+      </button>
     </div>
   );
 }
@@ -344,9 +413,13 @@ export default function App() {
   };
 
   useEffect(() => {
-    setShowInfoModal(true);
-    const timer = setTimeout(() => setShowInfoModal(false), 15000);
-    return () => clearTimeout(timer);
+    // Show info modal only on desktop (not mobile)
+    const isMobile = window.innerWidth < 640;
+    if (!isMobile) {
+      setShowInfoModal(true);
+      const timer = setTimeout(() => setShowInfoModal(false), 15000);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   useEffect(() => {
@@ -678,11 +751,16 @@ export default function App() {
       </AnimatePresence>
 
       <nav className="fixed top-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <button onClick={() => setView('home')} className="text-lg sm:text-xl font-bold tracking-tighter">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2">
+          {/* Desktop: «Մեծածախ Վաճառք» տառեր */}
+          <button onClick={() => setView('home')} className="hidden sm:block text-lg sm:text-xl font-bold tracking-tighter shrink-0">
             <span className="bg-gradient-to-r from-blue-500 to-orange-500 bg-clip-text text-transparent">Մեծածախ Վաճառք</span>
           </button>
-          <div className="flex items-center gap-6">
+
+          {/* Mobile: մինի share կոճակներ nav-ում */}
+          <NavShareButtons cartSectionRef={cartSectionRef} cart={cart} total={calculateTotal()} />
+
+          <div className="flex items-center gap-3 sm:gap-6 shrink-0">
             <button onClick={() => setView('categories')} className="hidden sm:block text-sm font-medium text-white/80 hover:text-white transition-colors">Ապրանքներ</button>
             <button onClick={() => setView('cart')} className="relative p-2 hover:bg-white/5 rounded-full transition-colors">
               <ShoppingCart size={20} />
