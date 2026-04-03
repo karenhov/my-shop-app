@@ -113,10 +113,13 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
   };
 
   const generateImage = async (): Promise<string> => {
-    const scale = Math.max(3, window.devicePixelRatio || 3);
-    const W = 480;
-    const PAD = 24;
-    const IMG_SIZE = 80;
+    // Keep canvas pixel width at 1080px max — messengers (Viber/WhatsApp/Telegram)
+    // recompress images larger than ~1280px to JPEG which causes visible artifacts.
+    // At W=360 logical px and scale=3 we get exactly 1080px physical — safe zone.
+    const W = 360;
+    const scale = 3;
+    const PAD = 20;
+    const IMG_SIZE = 72;
     const ROW_H = IMG_SIZE + 32;
 
     // Calculate total canvas height
@@ -125,7 +128,7 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
     const totalH = headerH + cart.length * (ROW_H + 16) + footerH;
 
     const canvas = document.createElement('canvas');
-    canvas.width = W * scale;
+    canvas.width = W * scale;   // exactly 1080px
     canvas.height = totalH * scale;
     const ctx = canvas.getContext('2d')!;
     ctx.scale(scale, scale);
@@ -193,7 +196,7 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
 
       // Code badge
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      roundRect(ctx, textX, y + 48, 90, 18, 6);
+      roundRect(ctx, textX, y + 48, 80, 18, 6);
       ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.font = `bold ${10}px sans-serif`;
@@ -201,11 +204,11 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
 
       // Quantity
       ctx.fillStyle = 'rgba(249,115,22,0.2)';
-      roundRect(ctx, textX + 96, y + 48, 70, 18, 6);
+      roundRect(ctx, textX + 86, y + 48, 70, 18, 6);
       ctx.fill();
       ctx.fillStyle = '#f97316';
       ctx.font = `bold ${10}px sans-serif`;
-      ctx.fillText(`${item.quantity} հատ`, textX + 102, y + 61);
+      ctx.fillText(`${item.quantity} հատ`, textX + 92, y + 61);
 
       // Price
       ctx.fillStyle = '#60a5fa';
@@ -215,7 +218,7 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
       // Unit price
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
       ctx.font = `${10}px sans-serif`;
-      ctx.fillText(`${item.price.toLocaleString()} ֏ × ${item.quantity}`, textX + 90, y + 88);
+      ctx.fillText(`${item.price.toLocaleString()} ֏ × ${item.quantity}`, textX + 80, y + 88);
 
       y += ROW_H + 16;
     }
@@ -254,7 +257,7 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
       canvas.toBlob((blob) => {
         if (!blob) { reject(new Error('Canvas toBlob failed')); return; }
         resolve(URL.createObjectURL(blob));
-      }, 'image/png');
+      }, 'image/jpeg', 0.97);
     });
   };
 
@@ -283,7 +286,7 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
       if (target === 'save') {
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'zambyugh.png';
+        a.download = 'zambyugh.jpg';
         a.click();
         // Revoke after short delay to allow download to start
         setTimeout(() => URL.revokeObjectURL(url), 5000);
@@ -362,14 +365,14 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
                       try {
                         const resp = await fetch(blobUrl);
                         const blob = await resp.blob();
-                        const file = new File([blob], 'zambyugh.png', { type: 'image/png' });
+                        const file = new File([blob], 'zambyugh.jpg', { type: 'image/jpeg' });
                         if (navigator.canShare({ files: [file] })) {
                           await navigator.share({ files: [file], title: 'Զամբյուղ' });
                           return;
                         }
                       } catch {}
                     }
-                    const a = document.createElement('a'); a.href = previewUrl!; a.download = 'zambyugh.png'; a.click();
+                    const a = document.createElement('a'); a.href = previewUrl!; a.download = 'zambyugh.jpg'; a.click();
                   }}
                     className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-bold text-sm flex items-center justify-center gap-2">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
