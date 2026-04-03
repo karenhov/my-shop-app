@@ -77,28 +77,201 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
   );
 }
 
-function ShareCartButtons({ cartSectionRef }: { cartSectionRef: RefObject<HTMLDivElement> }) {
+function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], total: number, appliedPromo: PromoCode | null }) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [shareTarget, setShareTarget] = useState<'viber' | 'whatsapp' | 'telegram' | 'save' | null>(null);
 
-  const captureAndShow = async (target: 'viber' | 'whatsapp' | 'telegram' | 'save') => {
-    if (!cartSectionRef.current || isCapturing) return;
+  const loadImage = (src: string): Promise<HTMLImageElement | null> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+      setTimeout(() => resolve(null), 4000);
+    });
+  };
+
+  const wrapText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number): number => {
+    const words = text.split(' ');
+    let line = '';
+    let currentY = y;
+    for (const word of words) {
+      const test = line ? line + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        ctx.fillText(line, x, currentY);
+        line = word;
+        currentY += lineHeight;
+      } else {
+        line = test;
+      }
+    }
+    if (line) ctx.fillText(line, x, currentY);
+    return currentY + lineHeight;
+  };
+
+  const generateImage = async (): Promise<string> => {
+    const scale = 2;
+    const W = 480;
+    const PAD = 24;
+    const IMG_SIZE = 80;
+    const ROW_H = IMG_SIZE + 32;
+
+    // Calculate total canvas height
+    const headerH = 80;
+    const footerH = 90;
+    const totalH = headerH + cart.length * (ROW_H + 16) + footerH;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W * scale;
+    canvas.height = totalH * scale;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(scale, scale);
+
+    // Background
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, W, totalH);
+
+    // Header gradient bar
+    const grad = ctx.createLinearGradient(0, 0, W, 0);
+    grad.addColorStop(0, '#2563eb');
+    grad.addColorStop(1, '#f97316');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, 5);
+
+    // Header title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${18 * 1}px sans-serif`;
+    ctx.fillText('🛒  ԶԱՄԲՅՈՒՂ', PAD, 38);
+
+    // Shop subtitle
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = `${12}px sans-serif`;
+    ctx.fillText('Մեծածախ Վաճառք', PAD, 60);
+
+    // Load all images in parallel
+    const images = await Promise.all(cart.map(item => loadImage(item.image)));
+
+    let y = headerH;
+
+    for (let i = 0; i < cart.length; i++) {
+      const item = cart[i];
+      const img = images[i];
+
+      // Row background
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      roundRect(ctx, PAD, y, W - PAD * 2, ROW_H, 16);
+      ctx.fill();
+
+      // Product image
+      if (img) {
+        ctx.save();
+        roundRect(ctx, PAD + 12, y + 12, IMG_SIZE, IMG_SIZE, 12);
+        ctx.clip();
+        ctx.drawImage(img, PAD + 12, y + 12, IMG_SIZE, IMG_SIZE);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        roundRect(ctx, PAD + 12, y + 12, IMG_SIZE, IMG_SIZE, 12);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = `${11}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('📦', PAD + 12 + IMG_SIZE / 2, y + 12 + IMG_SIZE / 2 + 4);
+        ctx.textAlign = 'left';
+      }
+
+      const textX = PAD + 12 + IMG_SIZE + 14;
+      const textW = W - textX - PAD - 8;
+
+      // Product name
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${13}px sans-serif`;
+      wrapText(ctx, item.name, textX, y + 26, textW, 18);
+
+      // Code badge
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      roundRect(ctx, textX, y + 48, 90, 18, 6);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = `bold ${10}px sans-serif`;
+      ctx.fillText(`ԿՈԴ: ${item.code}`, textX + 6, y + 61);
+
+      // Quantity
+      ctx.fillStyle = 'rgba(249,115,22,0.2)';
+      roundRect(ctx, textX + 96, y + 48, 70, 18, 6);
+      ctx.fill();
+      ctx.fillStyle = '#f97316';
+      ctx.font = `bold ${10}px sans-serif`;
+      ctx.fillText(`${item.quantity} հատ`, textX + 102, y + 61);
+
+      // Price
+      ctx.fillStyle = '#60a5fa';
+      ctx.font = `bold ${14}px sans-serif`;
+      ctx.fillText(`${(item.price * item.quantity).toLocaleString()} ֏`, textX, y + 88);
+
+      // Unit price
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.font = `${10}px sans-serif`;
+      ctx.fillText(`${item.price.toLocaleString()} ֏ × ${item.quantity}`, textX + 90, y + 88);
+
+      y += ROW_H + 16;
+    }
+
+    // Footer divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD, y + 8);
+    ctx.lineTo(W - PAD, y + 8);
+    ctx.stroke();
+
+    // Promo
+    if (appliedPromo) {
+      ctx.fillStyle = '#f97316';
+      ctx.font = `bold ${13}px sans-serif`;
+      const discount = Math.round(cart.reduce((s, i) => s + i.price * i.quantity, 0) * appliedPromo.discount_percent / 100);
+      ctx.fillText(`Զեղչ ${appliedPromo.discount_percent}%:  -${discount.toLocaleString()} ֏`, PAD, y + 34);
+    }
+
+    // Total
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = `${14}px sans-serif`;
+    ctx.fillText('ԸՆԴՀԱՆՈՒՐ', PAD, y + 62);
+
+    const totalGrad = ctx.createLinearGradient(0, 0, W, 0);
+    totalGrad.addColorStop(0, '#2563eb');
+    totalGrad.addColorStop(1, '#f97316');
+    ctx.fillStyle = totalGrad;
+    ctx.font = `bold ${22}px sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.fillText(`${total.toLocaleString()} ֏`, W - PAD, y + 62);
+    ctx.textAlign = 'left';
+
+    return canvas.toDataURL('image/png');
+  };
+
+  const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  };
+
+  const handleCapture = async (target: 'viber' | 'whatsapp' | 'telegram' | 'save') => {
+    if (isCapturing) return;
     setIsCapturing(true);
     setShareTarget(target);
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(cartSectionRef.current, {
-        backgroundColor: '#09090b',
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
-      });
-      const dataUrl = canvas.toDataURL('image/png');
-
+      const dataUrl = await generateImage();
       if (target === 'save') {
         const a = document.createElement('a');
         a.href = dataUrl;
@@ -108,8 +281,8 @@ function ShareCartButtons({ cartSectionRef }: { cartSectionRef: RefObject<HTMLDi
         setPreviewUrl(dataUrl);
       }
     } catch (e) {
-      console.error('Screenshot failed', e);
-      alert('Սկրինշոտը ձախողվեց, խնդրում ենք կրկին փորձել');
+      console.error(e);
+      alert('Սխալ տեղի ունեցավ, կրկին փորձեք');
     } finally {
       setIsCapturing(false);
     }
@@ -122,117 +295,67 @@ function ShareCartButtons({ cartSectionRef }: { cartSectionRef: RefObject<HTMLDi
     return `https://t.me/share/url?url=&text=${text}`;
   };
 
-  const appColors: Record<string, string> = {
-    viber: 'bg-[#7360f2] hover:bg-[#6350e0]',
-    whatsapp: 'bg-[#25D366] hover:bg-[#20bd5a]',
-    telegram: 'bg-[#0088cc] hover:bg-[#0077b3]',
-  };
-
-  const appIcons: Record<string, JSX.Element> = {
-    viber: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0">
-        <path d="M11.4 0C5.5.1.6 4.5.1 10.3c-.3 3 .6 5.9 2.5 8.1l-.9 4.4 4.6-1.2c1.8.9 3.8 1.4 5.8 1.4h.1c6.2 0 11.3-5 11.4-11.2C23.7 5.2 18.3-.1 11.4 0zm.2 20.4c-1.8 0-3.5-.5-5-1.3l-.4-.2-3.7 1 1-3.6-.2-.4c-1-1.5-1.5-3.2-1.5-5C1.9 5.5 6.2 1.5 11.5 1.5c2.6 0 5 1 6.8 2.8 1.8 1.8 2.8 4.2 2.8 6.7-.1 5.3-4.4 9.4-9.5 9.4zm5.2-7c-.3-.1-1.7-.8-1.9-.9-.3-.1-.5-.1-.7.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.3-1.4-.9-.8-1.5-1.7-1.6-2-.2-.3 0-.5.1-.6l.5-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.1-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.1 2 3 4.9 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.7.1.5-.1 1.7-.7 1.9-1.4.2-.6.2-1.2.2-1.3 0-.1-.3-.2-.5-.3z"/>
-      </svg>
-    ),
-    whatsapp: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0">
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-      </svg>
-    ),
-    telegram: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0">
-        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-      </svg>
-    ),
-  };
+  const apps = [
+    { key: 'viber' as const, label: 'Viber', color: 'bg-[#7360f2] hover:bg-[#6350e0]', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0"><path d="M11.4 0C5.5.1.6 4.5.1 10.3c-.3 3 .6 5.9 2.5 8.1l-.9 4.4 4.6-1.2c1.8.9 3.8 1.4 5.8 1.4h.1c6.2 0 11.3-5 11.4-11.2C23.7 5.2 18.3-.1 11.4 0zm.2 20.4c-1.8 0-3.5-.5-5-1.3l-.4-.2-3.7 1 1-3.6-.2-.4c-1-1.5-1.5-3.2-1.5-5C1.9 5.5 6.2 1.5 11.5 1.5c2.6 0 5 1 6.8 2.8 1.8 1.8 2.8 4.2 2.8 6.7-.1 5.3-4.4 9.4-9.5 9.4zm5.2-7c-.3-.1-1.7-.8-1.9-.9-.3-.1-.5-.1-.7.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.3-1.4-.9-.8-1.5-1.7-1.6-2-.2-.3 0-.5.1-.6l.5-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.1-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.1 2 3 4.9 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.7.1.5-.1 1.7-.7 1.9-1.4.2-.6.2-1.2.2-1.3 0-.1-.3-.2-.5-.3z"/></svg> },
+    { key: 'whatsapp' as const, label: 'WhatsApp', color: 'bg-[#25D366] hover:bg-[#20bd5a]', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> },
+    { key: 'telegram' as const, label: 'Telegram', color: 'bg-[#0088cc] hover:bg-[#0077b3]', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg> },
+  ];
 
   return (
     <>
       <div className="bg-white/5 p-4 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-white/5">
         <h3 className="text-sm sm:text-base font-bold mb-3 sm:mb-4 flex items-center gap-2 text-white/80">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-blue-400">
-            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-            <polyline points="16 6 12 2 8 6"/>
-            <line x1="12" y1="2" x2="12" y2="15"/>
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
           </svg>
           ԿԻՍՎԵԼ ԶԱՄԲՅՈՒՂՈՎ
         </h3>
         <div className="flex flex-wrap gap-2 sm:gap-3">
-          {(['viber', 'whatsapp', 'telegram'] as const).map(app => (
-            <button
-              key={app}
-              disabled={isCapturing}
-              onClick={() => captureAndShow(app)}
-              className={`flex items-center gap-2 ${appColors[app]} text-white px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:scale-105 shadow-lg disabled:opacity-50`}
-            >
-              {isCapturing && shareTarget === app ? <Loader2 size={14} className="animate-spin" /> : appIcons[app]}
-              {app === 'viber' ? 'Viber' : app === 'whatsapp' ? 'WhatsApp' : 'Telegram'}
+          {apps.map(app => (
+            <button key={app.key} disabled={isCapturing} onClick={() => handleCapture(app.key)}
+              className={`flex items-center gap-2 ${app.color} text-white px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:scale-105 shadow-lg disabled:opacity-50`}>
+              {isCapturing && shareTarget === app.key ? <Loader2 size={14} className="animate-spin" /> : app.icon}
+              {app.label}
             </button>
           ))}
-          <button
-            disabled={isCapturing}
-            onClick={() => captureAndShow('save')}
-            className="flex items-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:scale-105 shadow-lg border bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50"
-          >
+          <button disabled={isCapturing} onClick={() => handleCapture('save')}
+            className="flex items-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:scale-105 shadow-lg border bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
             {isCapturing && shareTarget === 'save' ? <Loader2 size={14} className="animate-spin" /> : (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
             )}
             Պահպանել
           </button>
         </div>
-        <p className="text-[10px] text-white/30 mt-3">* Կոճակը սեղմելուց հետո կստանաք նկարը, որը կարող եք ուղղարկել</p>
+        <p className="text-[10px] text-white/30 mt-3">* Կոճակը սեղմելուց կստանաք զամբյուղի նկարը</p>
       </div>
 
       <AnimatePresence>
         {previewUrl && shareTarget && shareTarget !== 'save' && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setPreviewUrl(null)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="max-w-sm w-full bg-zinc-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl"
-              onClick={e => e.stopPropagation()}
-            >
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+              className="max-w-sm w-full bg-zinc-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
               <div className="p-4 border-b border-white/10 flex items-center justify-between">
                 <p className="font-bold text-sm">Զամբյուղի նկարը</p>
-                <button onClick={() => setPreviewUrl(null)} className="text-white/40 hover:text-white transition-colors"><X size={20} /></button>
+                <button onClick={() => setPreviewUrl(null)} className="text-white/40 hover:text-white"><X size={20} /></button>
               </div>
-              <div className="max-h-64 overflow-y-auto">
+              <div className="max-h-72 overflow-y-auto bg-black">
                 <img src={previewUrl} alt="Cart" className="w-full" />
               </div>
               <div className="p-4 space-y-3">
-                <p className="text-xs text-white/50 text-center">
-                  1. Ներբեռնեք նկարը<br/>
-                  2. Բացեք {shareTarget === 'viber' ? 'Viber' : shareTarget === 'whatsapp' ? 'WhatsApp' : 'Telegram'} և ուղղարկեք
-                </p>
+                <p className="text-xs text-white/50 text-center">1. Ներբեռնեք նկարը &nbsp;→&nbsp; 2. Բացեք {apps.find(a => a.key === shareTarget)?.label} և ուղղարկեք</p>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const a = document.createElement('a');
-                      a.href = previewUrl;
-                      a.download = 'zambyugh.png';
-                      a.click();
-                    }}
-                    className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
-                  >
+                  <button onClick={() => { const a = document.createElement('a'); a.href = previewUrl; a.download = 'zambyugh.png'; a.click(); }}
+                    className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-bold text-sm flex items-center justify-center gap-2">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                     </svg>
                     Ներբեռնել
                   </button>
-                  <a
-                    href={getShareUrl(shareTarget)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`flex-1 py-3 ${appColors[shareTarget]} rounded-2xl font-bold text-sm flex items-center justify-center gap-2`}
-                  >
-                    {appIcons[shareTarget]}
+                  <a href={getShareUrl(shareTarget)} target="_blank" rel="noopener noreferrer"
+                    className={`flex-1 py-3 ${apps.find(a => a.key === shareTarget)?.color} rounded-2xl font-bold text-sm flex items-center justify-center gap-2`}>
+                    {apps.find(a => a.key === shareTarget)?.icon}
                     Բացել
                   </a>
                 </div>
@@ -802,7 +925,7 @@ export default function App() {
                     <div className="flex justify-between text-lg sm:text-xl font-bold pt-4 border-t border-white/10"><span>Ընդհանուր</span><span className="text-orange-500">{calculateTotal().toLocaleString()} ֏</span></div>
                   </div>
                   </div>
-                  <ShareCartButtons cartSectionRef={cartItemsRef} />
+                  <ShareCartButtons cart={cart} total={calculateTotal()} appliedPromo={appliedPromo} />
                   <CheckoutForm onSubmit={handleCheckout} isLoading={isCheckingOut} />
                 </div>
               )}
