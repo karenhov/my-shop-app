@@ -479,6 +479,49 @@ async function startServer() {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  // Cart image upload & serve
+  const cartImagesDir = path.join(__dirname, "cart-images");
+  import("fs").then(fs => {
+    if (!fs.existsSync(cartImagesDir)) fs.mkdirSync(cartImagesDir, { recursive: true });
+  });
+
+  app.post("/api/upload-cart-image", express.json({ limit: "10mb" }), async (req, res) => {
+    try {
+      const { image } = req.body; // base64 PNG data URL
+      if (!image || !image.startsWith("data:image/png;base64,")) {
+        return res.status(400).json({ error: "Invalid image data" });
+      }
+      const fs = await import("fs");
+      const crypto = await import("crypto");
+      const base64Data = image.replace("data:image/png;base64,", "");
+      const id = crypto.randomBytes(8).toString("hex");
+      const filename = `cart_${id}.png`;
+      const filepath = path.join(cartImagesDir, filename);
+      fs.writeFileSync(filepath, Buffer.from(base64Data, "base64"));
+      // Auto-delete after 24 hours
+      setTimeout(() => {
+        try { fs.unlinkSync(filepath); } catch {}
+      }, 24 * 60 * 60 * 1000);
+      const protocol = req.headers["x-forwarded-proto"] || "http";
+      const host = req.headers["x-forwarded-host"] || req.headers.host;
+      const publicUrl = `${protocol}://${host}/cart-image/${filename}`;
+      res.json({ url: publicUrl });
+    } catch (err) {
+      console.error("Image upload error:", err);
+      res.status(500).json({ error: "Failed to save image" });
+    }
+  });
+
+  app.get("/cart-image/:filename", (req, res) => {
+    const fs = require("fs");
+    const filename = req.params.filename.replace(/[^a-zA-Z0-9_.-]/g, "");
+    const filepath = path.join(cartImagesDir, filename);
+    if (!fs.existsSync(filepath)) return res.status(404).send("Not found");
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.sendFile(filepath);
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
