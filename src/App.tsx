@@ -80,6 +80,7 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
 function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], total: number, appliedPromo: PromoCode | null }) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [shareTarget, setShareTarget] = useState<'viber' | 'whatsapp' | 'telegram' | 'save' | null>(null);
 
   const loadImage = (src: string): Promise<HTMLImageElement | null> => {
@@ -249,7 +250,12 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
     ctx.fillText(`${total.toLocaleString()} ֏`, W - PAD, y + 62);
     ctx.textAlign = 'left';
 
-    return canvas.toDataURL('image/png');
+    return new Promise<string>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error('Canvas toBlob failed')); return; }
+        resolve(URL.createObjectURL(blob));
+      }, 'image/png');
+    });
   };
 
   const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
@@ -271,14 +277,19 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
     setIsCapturing(true);
     setShareTarget(target);
     try {
-      const dataUrl = await generateImage();
+      // Revoke previous blob URL to free memory
+      if (blobUrl) { URL.revokeObjectURL(blobUrl); setBlobUrl(null); }
+      const url = await generateImage(); // returns blob URL
       if (target === 'save') {
         const a = document.createElement('a');
-        a.href = dataUrl;
+        a.href = url;
         a.download = 'zambyugh.png';
         a.click();
+        // Revoke after short delay to allow download to start
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
       } else {
-        setPreviewUrl(dataUrl);
+        setBlobUrl(url);
+        setPreviewUrl(url);
       }
     } catch (e) {
       console.error(e);
@@ -333,25 +344,38 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
 
       <AnimatePresence>
         {previewUrl && shareTarget && shareTarget !== 'save' && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setPreviewUrl(null)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => { setPreviewUrl(null); if (blobUrl) { URL.revokeObjectURL(blobUrl); setBlobUrl(null); } }}>
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
               className="max-w-sm w-full bg-zinc-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
               <div className="p-4 border-b border-white/10 flex items-center justify-between">
                 <p className="font-bold text-sm">Զամբյուղի նկարը</p>
-                <button onClick={() => setPreviewUrl(null)} className="text-white/40 hover:text-white"><X size={20} /></button>
+                <button onClick={() => { setPreviewUrl(null); if (blobUrl) { URL.revokeObjectURL(blobUrl); setBlobUrl(null); } }} className="text-white/40 hover:text-white"><X size={20} /></button>
               </div>
               <div className="max-h-72 overflow-y-auto bg-black">
                 <img src={previewUrl} alt="Cart" className="w-full" />
               </div>
               <div className="p-4 space-y-3">
-                <p className="text-xs text-white/50 text-center">1. Ներբեռնեք նկարը &nbsp;→&nbsp; 2. Բացեք {apps.find(a => a.key === shareTarget)?.label} և ուղղարկեք</p>
+                <p className="text-xs text-white/50 text-center">Կիսվեք նկարը ուղղակիորեն ↓ կոճակով, կամ ներբեռնեք և ուղղարկեք {apps.find(a => a.key === shareTarget)?.label}-ով</p>
                 <div className="flex gap-2">
-                  <button onClick={() => { const a = document.createElement('a'); a.href = previewUrl; a.download = 'zambyugh.png'; a.click(); }}
+                  <button onClick={async () => {
+                    if (blobUrl && navigator.canShare) {
+                      try {
+                        const resp = await fetch(blobUrl);
+                        const blob = await resp.blob();
+                        const file = new File([blob], 'zambyugh.png', { type: 'image/png' });
+                        if (navigator.canShare({ files: [file] })) {
+                          await navigator.share({ files: [file], title: 'Զամբյուղ' });
+                          return;
+                        }
+                      } catch {}
+                    }
+                    const a = document.createElement('a'); a.href = previewUrl!; a.download = 'zambyugh.png'; a.click();
+                  }}
                     className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-bold text-sm flex items-center justify-center gap-2">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                     </svg>
-                    Ներբեռնել
+                    {typeof navigator !== "undefined" && navigator.canShare ? "Կիսվել" : "Ներբեռնել"}
                   </button>
                   <a href={getShareUrl(shareTarget)} target="_blank" rel="noopener noreferrer"
                     className={`flex-1 py-3 ${apps.find(a => a.key === shareTarget)?.color} rounded-2xl font-bold text-sm flex items-center justify-center gap-2`}>
