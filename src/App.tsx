@@ -112,7 +112,7 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
   };
 
   const generateImage = async (): Promise<string> => {
-    const scale = 2;
+    const scale = Math.max(3, window.devicePixelRatio || 3);
     const W = 480;
     const PAD = 24;
     const IMG_SIZE = 80;
