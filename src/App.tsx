@@ -132,10 +132,11 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
 }
 
 // ── Nav-ի մեջ փոքր share կոճակներ (միայն mobile, cart view-ում) ──
-function NavShareButtons({ cartSectionRef, cart, total }: {
+function NavShareButtons({ cartSectionRef, cart, total, setView }: {
   cartSectionRef: React.RefObject<HTMLDivElement>,
   cart: CartItem[],
-  total: number
+  total: number,
+  setView: (v: 'home' | 'categories' | 'products' | 'cart' | 'admin') => void,
 }) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
@@ -162,10 +163,24 @@ function NavShareButtons({ cartSectionRef, cart, total }: {
   }
 
   const captureAndShare = async (platform: 'viber' | 'whatsapp' | 'telegram') => {
-    if (!cartSectionRef.current) return;
     setIsCapturing(true);
-    setStatusMsg('Ստեղծվում...');
+    setStatusMsg('Բեռնվում...');
+
+    // Եթե cart view-ում չենք — նախ անցնել, սպասել DOM render-ին
+    if (!cartSectionRef.current) {
+      setView('cart');
+      await new Promise(resolve => setTimeout(resolve, 400));
+    }
+
+    if (!cartSectionRef.current) {
+      setStatusMsg('Սխալ');
+      setIsCapturing(false);
+      setTimeout(() => setStatusMsg(''), 2000);
+      return;
+    }
+
     try {
+      setStatusMsg('Ստեղծվում...');
       const dataUrl = await toPng(cartSectionRef.current, {
         backgroundColor: '#09090b',
         pixelRatio: 2,
@@ -728,7 +743,7 @@ export default function App() {
           </button>
 
           {/* Mobile: մինի share կոճակներ nav-ում */}
-          <NavShareButtons cartSectionRef={cartSectionRef} cart={cart} total={calculateTotal()} />
+          <NavShareButtons cartSectionRef={cartSectionRef} cart={cart} total={calculateTotal()} setView={setView} />
 
           <div className="flex items-center gap-3 sm:gap-6 shrink-0">
             <button onClick={() => setView('categories')} className="hidden sm:block text-sm font-medium text-white/80 hover:text-white transition-colors">Ապրանքներ</button>
