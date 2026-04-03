@@ -89,8 +89,15 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
       img.crossOrigin = 'anonymous';
       img.onload = () => resolve(img);
       img.onerror = () => resolve(null);
-      img.src = src;
-      setTimeout(() => resolve(null), 4000);
+      // For canvas rendering: load at 300px — enough for IMG_SIZE*scale (72*2=144px physical)
+      // This avoids blurry product thumbnails in the generated image
+      let optimizedSrc = src;
+      if (src.includes('unsplash.com')) {
+        const base = src.split('?')[0];
+        optimizedSrc = `${base}?q=95&w=300&auto=format&fit=crop`;
+      }
+      img.src = optimizedSrc;
+      setTimeout(() => resolve(null), 6000);
     });
   };
 
@@ -113,11 +120,11 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
   };
 
   const generateImage = async (): Promise<string> => {
-    // Keep canvas pixel width at 1080px max — messengers (Viber/WhatsApp/Telegram)
-    // recompress images larger than ~1280px to JPEG which causes visible artifacts.
-    // At W=360 logical px and scale=3 we get exactly 1080px physical — safe zone.
+    // Canvas at 720px wide — messengers recompress images larger than ~800px as Photo.
+    // At 720px the file stays under the threshold, so quality is preserved on delivery.
+    // scale=2 keeps sharpness (2× logical → 720px physical), while staying messenger-safe.
     const W = 360;
-    const scale = 3;
+    const scale = 2;
     const PAD = 20;
     const IMG_SIZE = 72;
     const ROW_H = IMG_SIZE + 32;
@@ -253,11 +260,13 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
     ctx.fillText(`${total.toLocaleString()} ֏`, W - PAD, y + 62);
     ctx.textAlign = 'left';
 
+    // PNG = lossless — no quality loss before messenger receives the file.
+    // Messengers that recompress will at least start from a pristine source.
     return new Promise<string>((resolve, reject) => {
       canvas.toBlob((blob) => {
         if (!blob) { reject(new Error('Canvas toBlob failed')); return; }
         resolve(URL.createObjectURL(blob));
-      }, 'image/jpeg', 0.97);
+      }, 'image/png');
     });
   };
 
@@ -286,7 +295,7 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
       if (target === 'save') {
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'zambyugh.jpg';
+        a.download = 'zambyugh.png';
         a.click();
         // Revoke after short delay to allow download to start
         setTimeout(() => URL.revokeObjectURL(url), 5000);
@@ -358,21 +367,21 @@ function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], tot
                 <img src={previewUrl} alt="Cart" className="w-full" />
               </div>
               <div className="p-4 space-y-3">
-                <p className="text-xs text-white/50 text-center">Կիսվեք նկարը ուղղակիորեն ↓ կոճակով, կամ ներբեռնեք և ուղղարկեք {apps.find(a => a.key === shareTarget)?.label}-ով</p>
+                <p className="text-xs text-white/50 text-center">📎 Ներբեռնեք և {apps.find(a => a.key === shareTarget)?.label}-ում ուղղարկեք <strong>որպես Ֆայլ</strong> (File/Document), ոչ Լուսանկար — այդ դեպքում որակը կպահպանվի</p>
                 <div className="flex gap-2">
                   <button onClick={async () => {
                     if (blobUrl && navigator.canShare) {
                       try {
                         const resp = await fetch(blobUrl);
                         const blob = await resp.blob();
-                        const file = new File([blob], 'zambyugh.jpg', { type: 'image/jpeg' });
+                        const file = new File([blob], 'zambyugh.png', { type: 'image/png' });
                         if (navigator.canShare({ files: [file] })) {
                           await navigator.share({ files: [file], title: 'Զամբյուղ' });
                           return;
                         }
                       } catch {}
                     }
-                    const a = document.createElement('a'); a.href = previewUrl!; a.download = 'zambyugh.jpg'; a.click();
+                    const a = document.createElement('a'); a.href = previewUrl!; a.download = 'zambyugh.png'; a.click();
                   }}
                     className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-bold text-sm flex items-center justify-center gap-2">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
