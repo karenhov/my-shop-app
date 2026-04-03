@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, FormEvent } from 'react';
+import type { RefObject } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShoppingCart, 
@@ -76,130 +77,179 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
   );
 }
 
-function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], total: number, appliedPromo: PromoCode | null }) {
-  const [copied, setCopied] = useState(false);
+function ShareCartButtons({ cartSectionRef }: { cartSectionRef: RefObject<HTMLDivElement> }) {
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const buildShareText = () => {
-    const lines: string[] = [];
-    lines.push('🛒 ԶԱՄԲՅՈՒՂ');
-    lines.push('─────────────────');
-    cart.forEach(item => {
-      lines.push(`📦 ${item.name}`);
-      lines.push(`   Կոդ: ${item.code}`);
-      lines.push(`   Քանակ: ${item.quantity} հատ`);
-      lines.push(`   Գին: ${item.price.toLocaleString()} ֏`);
-      const subtotal = item.price * item.quantity;
-      lines.push(`   Ենթագումար: ${subtotal.toLocaleString()} ֏`);
-      lines.push('');
-    });
-    lines.push('─────────────────');
-    if (appliedPromo) {
-      lines.push(`🎫 Զեղչ (${appliedPromo.discount_percent}%): -${Math.round(cart.reduce((s, i) => s + i.price * i.quantity, 0) * appliedPromo.discount_percent / 100).toLocaleString()} ֏`);
+  const captureScreenshot = async (): Promise<string | null> => {
+    if (!cartSectionRef.current) return null;
+    setIsCapturing(true);
+    try {
+      const html2canvas = (await import('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.esm.js' as any)).default;
+      const canvas = await html2canvas(cartSectionRef.current, {
+        backgroundColor: '#000000',
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+      });
+      return canvas.toDataURL('image/png');
+    } catch (e) {
+      console.error('Screenshot failed', e);
+      return null;
+    } finally {
+      setIsCapturing(false);
     }
-    lines.push(`💰 ԸՆԴՀԱՆՈՒՐ: ${total.toLocaleString()} ֏`);
-    return lines.join('\n');
   };
 
-  const shareText = buildShareText();
-  const encodedText = encodeURIComponent(shareText);
+  const handleDownload = async () => {
+    const dataUrl = await captureScreenshot();
+    if (!dataUrl) return;
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = 'zambyugh.png';
+    a.click();
+  };
 
-  const shareLinks = [
+  const handleShare = async (app: 'viber' | 'whatsapp' | 'telegram') => {
+    const dataUrl = await captureScreenshot();
+    if (!dataUrl) return;
+
+    // Convert dataUrl to Blob/File for Web Share API
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const file = new File([blob], 'zambyugh.png', { type: 'image/png' });
+
+    // Try Web Share API (works on mobile browsers)
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Զամբյուղ' });
+        return;
+      } catch (e) {
+        // user cancelled or not supported
+      }
+    }
+
+    // Fallback: show preview so user can save and share manually
+    setPreviewUrl(dataUrl);
+  };
+
+  const shareButtons = [
     {
       name: 'Viber',
-      color: 'bg-[#7360f2]',
-      hoverColor: 'hover:bg-[#6350e0]',
+      app: 'viber' as const,
+      color: 'bg-[#7360f2] hover:bg-[#6350e0]',
       icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
           <path d="M11.4 0C5.5.1.6 4.5.1 10.3c-.3 3 .6 5.9 2.5 8.1l-.9 4.4 4.6-1.2c1.8.9 3.8 1.4 5.8 1.4h.1c6.2 0 11.3-5 11.4-11.2C23.7 5.2 18.3-.1 11.4 0zm.2 20.4c-1.8 0-3.5-.5-5-1.3l-.4-.2-3.7 1 1-3.6-.2-.4c-1-1.5-1.5-3.2-1.5-5C1.9 5.5 6.2 1.5 11.5 1.5c2.6 0 5 1 6.8 2.8 1.8 1.8 2.8 4.2 2.8 6.7-.1 5.3-4.4 9.4-9.5 9.4zm5.2-7c-.3-.1-1.7-.8-1.9-.9-.3-.1-.5-.1-.7.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.3-1.4-.9-.8-1.5-1.7-1.6-2-.2-.3 0-.5.1-.6l.5-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.1-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.1 2 3 4.9 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.7.1.5-.1 1.7-.7 1.9-1.4.2-.6.2-1.2.2-1.3 0-.1-.3-.2-.5-.3z"/>
         </svg>
       ),
-      url: `viber://forward?text=${encodedText}`,
     },
     {
       name: 'WhatsApp',
-      color: 'bg-[#25D366]',
-      hoverColor: 'hover:bg-[#20bd5a]',
+      app: 'whatsapp' as const,
+      color: 'bg-[#25D366] hover:bg-[#20bd5a]',
       icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
         </svg>
       ),
-      url: `https://wa.me/?text=${encodedText}`,
     },
     {
       name: 'Telegram',
-      color: 'bg-[#0088cc]',
-      hoverColor: 'hover:bg-[#0077b3]',
+      app: 'telegram' as const,
+      color: 'bg-[#0088cc] hover:bg-[#0077b3]',
       icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
           <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
         </svg>
       ),
-      url: `https://t.me/share/url?url=${encodeURIComponent('https://t.me')}&text=${encodedText}`,
     },
   ];
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(shareText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      const el = document.createElement('textarea');
-      el.value = shareText;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
   return (
-    <div className="bg-white/5 p-4 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-white/5">
-      <h3 className="text-sm sm:text-base font-bold mb-3 sm:mb-4 flex items-center gap-2 text-white/80">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-blue-400">
-          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-          <polyline points="16 6 12 2 8 6"/>
-          <line x1="12" y1="2" x2="12" y2="15"/>
-        </svg>
-        ԿԻՍՎԵԼ ԶԱՄԲՅՈՒՂՈՎ
-      </h3>
-      <div className="flex flex-wrap gap-2 sm:gap-3">
-        {shareLinks.map(link => (
-          <a
-            key={link.name}
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex items-center gap-2 ${link.color} ${link.hoverColor} text-white px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:scale-105 shadow-lg`}
+    <>
+      <div className="bg-white/5 p-4 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-white/5">
+        <h3 className="text-sm sm:text-base font-bold mb-3 sm:mb-4 flex items-center gap-2 text-white/80">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-blue-400">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+            <polyline points="16 6 12 2 8 6"/>
+            <line x1="12" y1="2" x2="12" y2="15"/>
+          </svg>
+          ԿԻՍՎԵԼ ԶԱՄԲՅՈՒՂՈՎ
+        </h3>
+        <div className="flex flex-wrap gap-2 sm:gap-3">
+          {shareButtons.map(btn => (
+            <button
+              key={btn.name}
+              onClick={() => handleShare(btn.app)}
+              disabled={isCapturing}
+              className={`flex items-center gap-2 ${btn.color} text-white px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:scale-105 shadow-lg disabled:opacity-60`}
+            >
+              {isCapturing ? <Loader2 size={14} className="animate-spin" /> : btn.icon}
+              {btn.name}
+            </button>
+          ))}
+          <button
+            onClick={handleDownload}
+            disabled={isCapturing}
+            className="flex items-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:scale-105 shadow-lg border bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-60"
           >
-            {link.icon}
-            {link.name}
-          </a>
-        ))}
-        <button
-          onClick={handleCopy}
-          className={`flex items-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:scale-105 shadow-lg border ${copied ? 'bg-green-600 border-green-500 text-white' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'}`}
-        >
-          {copied ? (
-            <>
-              <CheckCircle2 size={16} />
-              Պատճենվեց
-            </>
-          ) : (
-            <>
+            {isCapturing ? <Loader2 size={14} className="animate-spin" /> : (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              Պատճենել
-            </>
-          )}
-        </button>
+            )}
+            Պահպանել
+          </button>
+        </div>
+        <p className="text-[10px] text-white/30 mt-3">
+          * Սեղմելով կիսվել կոճակը կստանաք զամբյուղի նկարը, որը կարող եք ուղղարկել ցանկացած հավելվածով
+        </p>
       </div>
-    </div>
+
+      {/* Preview modal */}
+      <AnimatePresence>
+        {previewUrl && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setPreviewUrl(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="max-w-sm w-full bg-zinc-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                <p className="font-bold text-sm">Զամբյուղի նկարը</p>
+                <button onClick={() => setPreviewUrl(null)} className="text-white/40 hover:text-white"><X size={20} /></button>
+              </div>
+              <img src={previewUrl} alt="Cart preview" className="w-full" />
+              <div className="p-4 space-y-2">
+                <p className="text-xs text-white/50 text-center mb-3">Պահպանեք նկարը և ուղղարկեք ձեր ընտրած հավելվածով</p>
+                <button
+                  onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = previewUrl;
+                    a.download = 'zambyugh.png';
+                    a.click();
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Ներբեռնել նկարը
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -272,6 +322,7 @@ export default function App() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isChangingPass, setIsChangingPass] = useState(false);
   const [passChangeData, setPassChangeData] = useState({ oldPass: '', newPass: '', confirmPass: '' });
+  const cartItemsRef = useRef<HTMLDivElement>(null);
 
   const optimizeImageUrl = (url: string, width = 400, quality = 80) => {
     if (!url) return '';
@@ -731,6 +782,7 @@ export default function App() {
                 </div>
               ) : (
                 <div className="space-y-4 sm:space-y-6">
+                  <div ref={cartItemsRef} className="space-y-4 sm:space-y-6">
                   {cart.map(item => (
                     <div key={item.id} className="flex gap-3 sm:gap-4 bg-white/5 p-3 sm:p-4 rounded-2xl border border-white/5">
                       <img src={optimizeImageUrl(item.image, 200)} alt={item.name} className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl" referrerPolicy="no-referrer" />
@@ -757,7 +809,8 @@ export default function App() {
                     {appliedPromo && <div className="flex justify-between text-xs sm:text-sm text-orange-400"><span>Զեղչ ({appliedPromo.discount_percent}%)</span><button onClick={() => setAppliedPromo(null)} className="underline hover:text-orange-300">Ջնջել</button></div>}
                     <div className="flex justify-between text-lg sm:text-xl font-bold pt-4 border-t border-white/10"><span>Ընդհանուր</span><span className="text-orange-500">{calculateTotal().toLocaleString()} ֏</span></div>
                   </div>
-                  <ShareCartButtons cart={cart} total={calculateTotal()} appliedPromo={appliedPromo} />
+                  </div>
+                  <ShareCartButtons cartSectionRef={cartItemsRef} />
                   <CheckoutForm onSubmit={handleCheckout} isLoading={isCheckingOut} />
                 </div>
               )}
