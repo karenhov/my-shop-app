@@ -158,28 +158,11 @@ async function initDb() {
     value TEXT NOT NULL
   )`;
 
-  const sharedCartsTable = isPostgres
-    ? `CREATE TABLE IF NOT EXISTS shared_carts (
-        id TEXT PRIMARY KEY,
-        cart_data TEXT NOT NULL,
-        total REAL NOT NULL,
-        promo_data TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`
-    : `CREATE TABLE IF NOT EXISTS shared_carts (
-        id TEXT PRIMARY KEY,
-        cart_data TEXT NOT NULL,
-        total REAL NOT NULL,
-        promo_data TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`;
-
   await query(productsTable);
   await query(promoCodesTable);
   await query(ordersTable);
   await query(orderItemsTable);
   await query(adminSettingsTable);
-  await query(sharedCartsTable);
 
   // Migration: Add min_quantity to products if it doesn't exist
   try {
@@ -486,37 +469,6 @@ async function startServer() {
       } else {
         res.status(401).json({ error: "Invalid old password" });
       }
-    } catch (error) {
-      res.status(500).json({ error: "Database error" });
-    }
-  });
-
-  // Shared Carts
-  app.post("/api/shared-carts", async (req, res) => {
-    try {
-      const { cart, total, promo } = req.body;
-      const id = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-      await query(
-        "INSERT INTO shared_carts (id, cart_data, total, promo_data) VALUES ($1, $2, $3, $4)",
-        [id, JSON.stringify(cart), total, promo ? JSON.stringify(promo) : null]
-      );
-      res.json({ id });
-    } catch (error) {
-      res.status(500).json({ error: "Database error" });
-    }
-  });
-
-  app.get("/api/shared-carts/:id", async (req, res) => {
-    try {
-      const result = await query("SELECT * FROM shared_carts WHERE id = $1", [req.params.id]);
-      if (result.rows.length === 0) return res.status(404).json({ error: "Not found" });
-      const row = result.rows[0];
-      res.json({
-        cart: JSON.parse(row.cart_data),
-        total: row.total,
-        promo: row.promo_data ? JSON.parse(row.promo_data) : null,
-        created_at: row.created_at,
-      });
     } catch (error) {
       res.status(500).json({ error: "Database error" });
     }
