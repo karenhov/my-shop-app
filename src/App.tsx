@@ -78,10 +78,114 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
 }
 
 function ShareCartButtons({ cart, total, appliedPromo }: { cart: CartItem[], total: number, appliedPromo: PromoCode | null }) {
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [shareTarget, setShareTarget] = useState<'viber' | 'whatsapp' | 'telegram' | 'save' | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = async () => {
+    if (isSharing) return;
+    setIsSharing(true);
+    try {
+      const res = await fetch('/api/shared-carts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cart, total, promo: appliedPromo }),
+      });
+      const data = await res.json();
+      const url = `${window.location.origin}/cart/${data.id}`;
+      setShareUrl(url);
+    } catch (e) {
+      alert('Սխալ տեղի ունեցավ, կրկին փորձեք');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback
+      const el = document.createElement('textarea');
+      el.value = shareUrl;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const getMessengerUrl = (app: 'viber' | 'whatsapp' | 'telegram') => {
+    if (!shareUrl) return '#';
+    const text = encodeURIComponent(`Ահա իմ զամբյուղը 🛒\n${shareUrl}`);
+    if (app === 'viber') return `viber://forward?text=${text}`;
+    if (app === 'whatsapp') return `https://wa.me/?text=${text}`;
+    return `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent('Ահա իմ զամբյուղը 🛒')}`;
+  };
+
+  const apps = [
+    { key: 'viber' as const, label: 'Viber', color: 'bg-[#7360f2] hover:bg-[#6350e0]', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0"><path d="M11.4 0C5.5.1.6 4.5.1 10.3c-.3 3 .6 5.9 2.5 8.1l-.9 4.4 4.6-1.2c1.8.9 3.8 1.4 5.8 1.4h.1c6.2 0 11.3-5 11.4-11.2C23.7 5.2 18.3-.1 11.4 0zm.2 20.4c-1.8 0-3.5-.5-5-1.3l-.4-.2-3.7 1 1-3.6-.2-.4c-1-1.5-1.5-3.2-1.5-5C1.9 5.5 6.2 1.5 11.5 1.5c2.6 0 5 1 6.8 2.8 1.8 1.8 2.8 4.2 2.8 6.7-.1 5.3-4.4 9.4-9.5 9.4zm5.2-7c-.3-.1-1.7-.8-1.9-.9-.3-.1-.5-.1-.7.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.3-1.4-.9-.8-1.5-1.7-1.6-2-.2-.3 0-.5.1-.6l.5-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.1-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.1 2 3 4.9 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.7.1.5-.1 1.7-.7 1.9-1.4.2-.6.2-1.2.2-1.3 0-.1-.3-.2-.5-.3z"/></svg> },
+    { key: 'whatsapp' as const, label: 'WhatsApp', color: 'bg-[#25D366] hover:bg-[#20bd5a]', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> },
+    { key: 'telegram' as const, label: 'Telegram', color: 'bg-[#0088cc] hover:bg-[#0077b3]', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg> },
+  ];
+
+  return (
+    <>
+      <div className="bg-white/5 p-4 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-white/5">
+        <h3 className="text-sm sm:text-base font-bold mb-3 sm:mb-4 flex items-center gap-2 text-white/80">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-blue-400">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+          </svg>
+          ԿԻՍՎԵԼ ԶԱՄԲՅՈՒՂՈՎ
+        </h3>
+
+        {!shareUrl ? (
+          <button onClick={handleShare} disabled={isSharing}
+            className="w-full py-3 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-95">
+            {isSharing ? <Loader2 size={16} className="animate-spin" /> : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+              </svg>
+            )}
+            {isSharing ? 'Ստեղծվում է...' : 'Ստեղծել հղում'}
+          </button>
+        ) : (
+          <div className="space-y-3">
+            {/* URL box */}
+            <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-2xl px-3 py-2">
+              <span className="flex-1 text-xs text-white/70 truncate">{shareUrl}</span>
+              <button onClick={handleCopy}
+                className="shrink-0 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition-all active:scale-95">
+                {copied ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+
+            {/* Messenger buttons */}
+            <div className="flex flex-wrap gap-2">
+              {apps.map(app => (
+                <a key={app.key} href={getMessengerUrl(app.key)} target="_blank" rel="noopener noreferrer"
+                  className={`flex items-center gap-2 ${app.color} text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 hover:scale-105 shadow-lg`}>
+                  {app.icon}
+                  {app.label}
+                </a>
+              ))}
+              <button onClick={() => setShareUrl(null)}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl font-bold text-xs bg-white/10 hover:bg-white/20 text-white/60 transition-all active:scale-95">
+                <X size={12} /> Նոր
+              </button>
+            </div>
+            <p className="text-[10px] text-white/30">* Հղումը 24 ժամ վավեր է</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
 
   const loadImage = (src: string): Promise<HTMLImageElement | null> => {
     return new Promise((resolve) => {
@@ -448,7 +552,94 @@ function AddPromoForm({ onAdd }: { onAdd: (data: any) => void }) {
   );
 }
 
+function SharedCartPage({ cartId }: { cartId: string }) {
+  const [data, setData] = useState<{ cart: CartItem[], total: number, promo: PromoCode | null } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/shared-carts/${cartId}`)
+      .then(r => r.json())
+      .then(d => { if (d.error) setError(true); else setData(d); })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [cartId]);
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+      <Loader2 size={32} className="animate-spin text-blue-500" />
+    </div>
+  );
+
+  if (error || !data) return (
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center text-white/50">
+      Հղումը գտնված չէ կամ ժամկետը լրացել է
+    </div>
+  );
+
+  const subtotal = data.cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const discount = data.promo ? Math.round(subtotal * data.promo.discount_percent / 100) : 0;
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
+      <div className="max-w-lg mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="h-1 w-full rounded-full bg-gradient-to-r from-blue-600 to-orange-500 mb-6" />
+          <h1 className="text-2xl font-bold">🛒 Զամբյուղ</h1>
+          <p className="text-white/40 text-sm mt-1">Մեծածախ Վաճառք</p>
+        </div>
+
+        {/* Items */}
+        <div className="space-y-3 mb-6">
+          {data.cart.map((item, i) => (
+            <div key={i} className="flex gap-3 bg-white/5 rounded-2xl p-3 border border-white/5">
+              {item.image && (
+                <img src={item.image} alt={item.name}
+                  className="w-16 h-16 object-cover rounded-xl shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm truncate">{item.name}</p>
+                <p className="text-white/40 text-xs mt-0.5">ԿՈԴ: {item.code}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-xs bg-orange-500/20 text-orange-400 font-bold px-2 py-0.5 rounded-lg">{item.quantity} հատ</span>
+                  <span className="text-blue-400 font-bold text-sm">{(item.price * item.quantity).toLocaleString()} ֏</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="bg-white/5 rounded-2xl p-4 border border-white/5 space-y-2">
+          {data.promo && (
+            <div className="flex justify-between text-sm">
+              <span className="text-white/50">Զեղչ {data.promo.discount_percent}%</span>
+              <span className="text-orange-400 font-bold">-{discount.toLocaleString()} ֏</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center">
+            <span className="text-white/60 font-medium">ԸՆԴՀԱՆՈՒՐ</span>
+            <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-orange-400 bg-clip-text text-transparent">
+              {data.total.toLocaleString()} ֏
+            </span>
+          </div>
+        </div>
+
+        <a href="/" className="mt-6 block text-center text-sm text-blue-400 hover:text-blue-300 transition-colors">
+          Բացել կայքը →
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  // Check if this is a shared cart URL: /cart/:id
+  const pathMatch = window.location.pathname.match(/^\/cart\/([a-z0-9]+)$/i);
+  if (pathMatch) {
+    return <SharedCartPage cartId={pathMatch[1]} />;
+  }
   const [view, setView] = useState<'home' | 'categories' | 'products' | 'cart' | 'admin'>('home');
   const [category, setCategory] = useState<'sneakers' | 'slippers' | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
