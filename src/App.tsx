@@ -38,6 +38,11 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
     if (!cartSectionRef.current) return;
     setIsCapturing(true);
     setStatusMsg('Նկարը ստեղծվում է...');
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    // Desktop-ում անմիջապես tab բացել (popup block-ից խուսափելու համար)
+    const newTab = isMobile ? null : window.open('about:blank', '_blank');
+
     try {
       const dataUrl = await toPng(cartSectionRef.current, {
         backgroundColor: '#09090b',
@@ -56,25 +61,28 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
       const { url: imageUrl } = await response.json();
 
       setStatusMsg('Բացվում է հավելվածը...');
-      openPlatform(platform, imageUrl);
+      const msg = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏\n${imageUrl}`);
+      const urls: Record<string, string> = {
+        viber:    `viber://forward?text=${msg}`,
+        whatsapp: `https://wa.me/?text=${msg}`,
+        telegram: `https://t.me/share/url?url=${encodeURIComponent(imageUrl)}&text=${encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏`)}`,
+      };
+      if (isMobile) {
+        window.location.href = urls[platform];
+      } else if (newTab) {
+        newTab.location.href = urls[platform];
+      } else {
+        window.open(urls[platform], '_blank');
+      }
     } catch (err) {
       console.error('Share error:', err);
+      if (newTab) newTab.close();
       setStatusMsg('Սխալ: ' + (err as Error).message);
       setTimeout(() => setStatusMsg(''), 3000);
     } finally {
       setIsCapturing(false);
       setTimeout(() => setStatusMsg(''), 2500);
     }
-  };
-
-  const openPlatform = (platform: 'viber' | 'whatsapp' | 'telegram', imageUrl: string) => {
-    const msg = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏\n${imageUrl}`);
-    const urls: Record<string, string> = {
-      viber:    `viber://forward?text=${msg}`,
-      whatsapp: `https://wa.me/?text=${msg}`,
-      telegram: `https://t.me/share/url?url=${encodeURIComponent(imageUrl)}&text=${encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏`)}`,
-    };
-    window.open(urls[platform], '_blank');
   };
 
   return (
@@ -166,6 +174,9 @@ function NavShareButtons({ cartSectionRef, cart, total, setView }: {
     setIsCapturing(true);
     setStatusMsg('Բեռնվում...');
 
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const newTab = isMobile ? null : window.open('about:blank', '_blank');
+
     // Եթե cart view-ում չենք — նախ անցնել, սպասել DOM render-ին
     if (!cartSectionRef.current) {
       setView('cart');
@@ -173,6 +184,7 @@ function NavShareButtons({ cartSectionRef, cart, total, setView }: {
     }
 
     if (!cartSectionRef.current) {
+      if (newTab) newTab.close();
       setStatusMsg('Սխալ');
       setIsCapturing(false);
       setTimeout(() => setStatusMsg(''), 2000);
@@ -203,8 +215,15 @@ function NavShareButtons({ cartSectionRef, cart, total, setView }: {
         whatsapp: `https://wa.me/?text=${fullMsg}`,
         telegram: `https://t.me/share/url?url=${encodedUrl}&text=${text}`,
       };
-      window.open(urls[platform], '_blank');
+      if (isMobile) {
+        window.location.href = urls[platform];
+      } else if (newTab) {
+        newTab.location.href = urls[platform];
+      } else {
+        window.open(urls[platform], '_blank');
+      }
     } catch (err) {
+      if (newTab) newTab.close();
       setStatusMsg('Սխալ');
       setTimeout(() => setStatusMsg(''), 2000);
     } finally {
