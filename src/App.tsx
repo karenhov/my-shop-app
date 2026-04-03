@@ -52,6 +52,59 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
     try {
       const h2c = await loadHtml2Canvas();
 
+      // oklch գույները hex-ով փոխարինելու helper
+      const replaceOklchColors = (element: HTMLElement) => {
+        const allElements = [element, ...Array.from(element.querySelectorAll('*'))] as HTMLElement[];
+        const oklchToHex: Record<string, string> = {
+          // Tailwind v4 default oklch colors → hex fallbacks
+          'oklch(0% 0 0)': '#000000',
+          'oklch(100% 0 0)': '#ffffff',
+          'oklch(14.5% 0 0)': '#181818',
+          'oklch(21% 0 0)': '#272727',
+          'oklch(26.9% 0 0)': '#333333',
+          'oklch(37% 0 0)': '#484848',
+          'oklch(55.3% 0 0)': '#717171',
+          'oklch(70.8% 0 0)': '#a0a0a0',
+          'oklch(87.2% 0 0)': '#d4d4d4',
+          'oklch(96.7% 0 0)': '#f5f5f5',
+          'oklch(98.5% 0 0)': '#fafafa',
+        };
+
+        allElements.forEach(el => {
+          const computed = window.getComputedStyle(el);
+          const props = ['color', 'background-color', 'border-color', 'border-top-color', 
+                        'border-right-color', 'border-bottom-color', 'border-left-color',
+                        'outline-color', 'box-shadow'];
+          props.forEach(prop => {
+            const val = computed.getPropertyValue(prop);
+            if (val && val.includes('oklch')) {
+              // Convert oklch to rgba by letting browser compute it, then override
+              el.style.setProperty(prop, val.replace(/oklch\([^)]+\)/g, (match) => {
+                return oklchToHex[match] || '#888888';
+              }));
+            }
+          });
+
+          // Also handle inline styles and CSS variables
+          const style = el.getAttribute('style') || '';
+          if (style.includes('oklch')) {
+            el.setAttribute('style', style.replace(/oklch\([^)]+\)/g, '#888888'));
+          }
+        });
+
+        // Override all CSS custom properties in :root that use oklch
+        const styleOverride = element.ownerDocument.createElement('style');
+        styleOverride.textContent = `
+          * { 
+            --tw-ring-color: rgba(59, 130, 246, 0.5) !important;
+          }
+          [class*="bg-white\\/"] { background-color: rgba(255,255,255,0.05) !important; }
+          [class*="border-white\\/"] { border-color: rgba(255,255,255,0.1) !important; }
+          [class*="text-white\\/"] { color: rgba(255,255,255,0.6) !important; }
+        `;
+        element.ownerDocument.head.appendChild(styleOverride);
+      };
+
       // Capture the cart section element
       const canvas = await h2c(cartSectionRef.current, {
         backgroundColor: '#09090b',
@@ -60,6 +113,9 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
         allowTaint: true,
         logging: false,
         ignoreElements: (el: HTMLElement) => el.dataset.shareIgnore === 'true',
+        onclone: (_doc: Document, element: HTMLElement) => {
+          replaceOklchColors(element);
+        },
       });
 
       const dataUrl = canvas.toDataURL('image/png');
@@ -88,11 +144,12 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
   };
 
   const openPlatform = (platform: 'viber' | 'whatsapp' | 'telegram', imageUrl: string) => {
-    const msg = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏\n${imageUrl}`);
+    const text = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏`);
+    const encodedUrl = encodeURIComponent(imageUrl);
     const urls: Record<string, string> = {
-      viber:    `viber://forward?text=${msg}`,
-      whatsapp: `https://wa.me/?text=${msg}`,
-      telegram: `https://t.me/share/url?url=${encodeURIComponent(imageUrl)}&text=${encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏`)}`,
+      viber:    `viber://forward?text=${encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏\n${imageUrl}`)}`,
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏\n${imageUrl}`)}`,
+      telegram: `https://t.me/share/url?url=${encodedUrl}&text=${text}`,
     };
     window.open(urls[platform], '_blank');
   };
