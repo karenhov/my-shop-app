@@ -933,7 +933,7 @@ export default function App() {
                               <div data-share-ignore="true" className="flex items-center gap-2 sm:gap-3">
                                 <button onClick={() => updateCartQuantity(item.id, -1)} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white/10 rounded-full hover:bg-orange-500/20 transition-colors text-sm">-</button>
                               </div>
-                              <span className="text-sm sm:text-base font-bold text-white">x{item.quantity}</span>
+                              <span className="text-sm sm:text-base font-bold text-white">{item.quantity}</span>
                               <div data-share-ignore="true" className="flex items-center gap-2 sm:gap-3">
                                 <button onClick={() => updateCartQuantity(item.id, 1)} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white/10 rounded-full hover:bg-blue-500/20 transition-colors text-sm">+</button>
                                 <button onClick={() => removeFromCart(item.id)} className="ml-1 sm:ml-2 text-red-500 hover:text-red-400"><Trash2 size={16} /></button>
