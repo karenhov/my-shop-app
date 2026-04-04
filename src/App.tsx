@@ -929,11 +929,15 @@ export default function App() {
                           <p className="text-[10px] sm:text-sm text-white/40">Կոդ: {item.code}</p>
                           <div className="flex items-center justify-between mt-2">
                             <p className="text-blue-400 font-bold text-sm sm:text-base">{item.price.toLocaleString()} ֏</p>
-                            <div className="flex items-center gap-2 sm:gap-3" data-share-ignore="true">
-                              <button onClick={() => updateCartQuantity(item.id, -1)} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white/10 rounded-full hover:bg-orange-500/20 transition-colors text-sm">-</button>
-                              <span className="text-sm sm:text-base">{item.quantity}</span>
-                              <button onClick={() => updateCartQuantity(item.id, 1)} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white/10 rounded-full hover:bg-blue-500/20 transition-colors text-sm">+</button>
-                              <button onClick={() => removeFromCart(item.id)} className="ml-1 sm:ml-2 text-red-500 hover:text-red-400"><Trash2 size={16} /></button>
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <div data-share-ignore="true" className="flex items-center gap-2 sm:gap-3">
+                                <button onClick={() => updateCartQuantity(item.id, -1)} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white/10 rounded-full hover:bg-orange-500/20 transition-colors text-sm">-</button>
+                              </div>
+                              <span className="text-sm sm:text-base font-bold text-white">x{item.quantity}</span>
+                              <div data-share-ignore="true" className="flex items-center gap-2 sm:gap-3">
+                                <button onClick={() => updateCartQuantity(item.id, 1)} className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white/10 rounded-full hover:bg-blue-500/20 transition-colors text-sm">+</button>
+                                <button onClick={() => removeFromCart(item.id)} className="ml-1 sm:ml-2 text-red-500 hover:text-red-400"><Trash2 size={16} /></button>
+                              </div>
                             </div>
                           </div>
                           <p className="text-[10px] sm:text-xs text-white/30 mt-1">Ընդամենը՝ {(item.price * item.quantity).toLocaleString()} ֏</p>
