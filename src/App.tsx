@@ -23,11 +23,21 @@ import {
 import { Product, CartItem, PromoCode, Order } from './types';
 import { toPng } from 'html-to-image';
 
+// ---- Viber SVG Icon (official symbol style as shown in red circle) ----
+function ViberIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 512 512" width={size} height={size} fill="white" xmlns="http://www.w3.org/2000/svg">
+      <path d="M444.17 32.01C378.68.6 295.85-8.87 228.34 6.76c-124.47 29.12-185.86 140.51-175.33 261.1 4.5 51.57 26.17 99.52 59.21 137.32v76.82l73.8-36.9c25.16 7.75 51.24 12.13 77.58 12.13 137.02 0 248.28-107.46 250.5-244.54 1.14-69.34-29.95-133.29-69.93-180.68zM365.5 347.27c-8.06 22.63-46.84 43.36-65.55 46.15-16.97 2.56-37.95 3.53-61.32-3.78-14.16-4.44-32.26-10.35-55.3-20.28-97.36-42.01-160.88-141.28-165.68-147.76-4.8-6.48-39.18-52.16-39.18-99.56 0-47.4 24.86-70.43 33.67-79.95 8.81-9.52 19.22-11.9 25.67-11.9 6.45 0 12.9.06 18.56.33 5.95.29 13.93-2.26 21.78 16.64 8.06 19.34 27.46 66.95 29.83 71.81 2.38 4.86 3.97 10.52 .79 16.99-3.17 6.48-4.76 10.52-9.52 16.2-4.76 5.68-10.01 12.69-14.31 17.06-4.76 4.86-9.72 10.12-4.17 19.82 5.54 9.7 24.68 40.75 53.02 66.01 36.44 32.47 67.14 42.52 76.65 47.38 9.52 4.86 15.06 4.07 20.61-2.44 5.54-6.51 23.77-27.77 30.12-37.28 6.35-9.52 12.7-7.93 21.4-4.76 8.7 3.17 55.3 26.1 64.82 30.96 9.52 4.86 15.86 7.24 18.24 11.3 2.38 4.04 2.38 23.38-5.68 46.01zM323.33 186.54c-3.53 0-6.39-2.86-6.39-6.39-.06-30.03-24.45-54.48-54.48-54.48-3.53 0-6.39-2.86-6.39-6.39s2.86-6.39 6.39-6.39c37.08 0 67.26 30.18 67.26 67.26 0 3.53-2.86 6.39-6.39 6.39zm44.43 14.64c-3.53 0-6.39-2.86-6.39-6.39-.06-54.18-44.1-98.22-98.28-98.22-3.53 0-6.39-2.86-6.39-6.39s2.86-6.39 6.39-6.39c61.24 0 111.06 49.82 111.06 111.06 0 3.47-2.86 6.33-6.39 6.33zm44.37 15.86c-3.53 0-6.39-2.86-6.39-6.39C405.74 125.24 345.5 65 271.85 65c-3.53 0-6.39-2.86-6.39-6.39S268.32 52.22 271.85 52.22c80.48 0 146.01 65.47 146.01 146.01.06 3.53-2.8 6.81-6.33 6.81z"/>
+    </svg>
+  );
+}
+
 // ---- Share Cart via Viber / WhatsApp / Telegram ----
-function ShareCartButtons({ cartSectionRef, cart, total }: {
+function ShareCartButtons({ cartSectionRef, cart, total, onClearCart }: {
   cartSectionRef: React.RefObject<HTMLDivElement>,
   cart: CartItem[],
-  total: number
+  total: number,
+  onClearCart: () => void,
 }) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
@@ -74,6 +84,10 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
       } else {
         window.open(urls[platform], '_blank');
       }
+      // ── Ավտոմատ մաքրել զամբյուղը կիսվելուց հետո ──
+      setTimeout(() => {
+        onClearCart();
+      }, 1500);
     } catch (err) {
       console.error('Share error:', err);
       if (newTab) newTab.close();
@@ -98,9 +112,7 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
           className="flex flex-col items-center gap-1.5 py-3 sm:py-4 px-2 rounded-xl transition-all active:scale-95 disabled:opacity-50"
           style={{ background: '#7360f2' }}
         >
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
-            <path d="M11.4 1C6.07 1 2 4.96 2 10.3c0 3.3 1.72 6.24 4.4 7.95V21l3.37-1.85c.56.15 1.14.23 1.75.23 5.32 0 9.48-3.96 9.48-9.08C21 4.96 16.72 1 11.4 1zm.94 12.24l-2.4-2.56-4.7 2.56 5.17-5.5 2.47 2.56 4.63-2.56-5.17 5.5z"/>
-          </svg>
+          <ViberIcon size={24} />
           <span className="text-white text-[11px] sm:text-xs font-bold leading-none">Viber</span>
         </button>
         {/* WhatsApp */}
@@ -140,11 +152,12 @@ function ShareCartButtons({ cartSectionRef, cart, total }: {
 }
 
 // ── Nav-ի մեջ փոքր share կոճակներ (միայն mobile, cart view-ում) ──
-function NavShareButtons({ cartSectionRef, cart, total, setView }: {
+function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: {
   cartSectionRef: React.RefObject<HTMLDivElement>,
   cart: CartItem[],
   total: number,
   setView: (v: 'home' | 'categories' | 'products' | 'cart' | 'admin') => void,
+  onClearCart: () => void,
 }) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
@@ -222,6 +235,10 @@ function NavShareButtons({ cartSectionRef, cart, total, setView }: {
       } else {
         window.open(urls[platform], '_blank');
       }
+      // ── Ավտոմատ մաքրել զամբյուղը կիսվելուց հետո ──
+      setTimeout(() => {
+        onClearCart();
+      }, 1500);
     } catch (err) {
       if (newTab) newTab.close();
       setStatusMsg('Սխալ');
@@ -252,9 +269,7 @@ function NavShareButtons({ cartSectionRef, cart, total, setView }: {
         className="flex items-center justify-center p-2 rounded-xl active:scale-90 transition-all shrink-0"
         style={{ background: '#7360f2', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
       >
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
-          <path d="M11.4 1C6.07 1 2 4.96 2 10.3c0 3.3 1.72 6.24 4.4 7.95V21l3.37-1.85c.56.15 1.14.23 1.75.23 5.32 0 9.48-3.96 9.48-9.08C21 4.96 16.72 1 11.4 1zm.94 12.24l-2.4-2.56-4.7 2.56 5.17-5.5 2.47 2.56 4.63-2.56-5.17 5.5z"/>
-        </svg>
+        <ViberIcon size={18} />
       </button>
       <button
         onClick={() => captureAndShare('whatsapp')}
@@ -382,6 +397,7 @@ function AddPromoForm({ onAdd }: { onAdd: (data: any) => void }) {
 
 export default function App() {
   const [view, setView] = useState<'home' | 'categories' | 'products' | 'cart' | 'admin'>('home');
+  const [previousView, setPreviousView] = useState<'home' | 'categories' | 'products'>('categories');
   const [category, setCategory] = useState<'sneakers' | 'slippers' | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -466,6 +482,10 @@ export default function App() {
 
   const addToCart = (product: Product) => {
     const step = product.min_quantity || 1;
+    // Հիշել վերջին էջը (products կամ home) զամբյուղ մտնելուց առաջ
+    if (view === 'products' || view === 'home' || view === 'categories') {
+      setPreviousView(view as 'home' | 'categories' | 'products');
+    }
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
@@ -762,11 +782,11 @@ export default function App() {
           </button>
 
           {/* Mobile: մինի share կոճակներ nav-ում */}
-          <NavShareButtons cartSectionRef={cartSectionRef} cart={cart} total={calculateTotal()} setView={setView} />
+          <NavShareButtons cartSectionRef={cartSectionRef} cart={cart} total={calculateTotal()} setView={setView} onClearCart={() => setCart([])} />
 
           <div className="flex items-center gap-3 sm:gap-6 shrink-0">
             <button onClick={() => setView('categories')} className="hidden sm:block text-sm font-medium text-white/80 hover:text-white transition-colors">Ապրանքներ</button>
-            <button onClick={() => setView('cart')} className="relative p-2 hover:bg-white/5 rounded-full transition-colors">
+            <button onClick={() => { if (view !== 'cart' && view !== 'admin') setPreviousView(view as 'home' | 'categories' | 'products'); setView('cart'); }} className="relative p-2 hover:bg-white/5 rounded-full transition-colors">
               <ShoppingCart size={20} />
               {cart.length > 0 && (
                 <span className="absolute -top-1 -right-1 bg-orange-600 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
@@ -862,9 +882,29 @@ export default function App() {
 
           {view === 'cart' && (
             <motion.div key="cart" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-2xl mx-auto">
-              <div className="flex items-center justify-between mb-6 sm:mb-8">
-                <h2 className="text-2xl sm:text-3xl font-bold">ԶԱՄԲՅՈՒՂ</h2>
-                <button onClick={() => { if (confirm('Մաքրե՞լ զամբյուղը:')) setCart([]); }} className="text-xs font-bold text-red-500 hover:text-red-400 transition-colors flex items-center gap-1"><Trash2 size={14} /> ՄԱՔՐԵԼ</button>
+              <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3">
+                {/* Վերադառնալ կոճակ */}
+                <button
+                  onClick={() => setView(previousView)}
+                  className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:bg-white/10 shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}
+                >
+                  <ChevronLeft size={16} />
+                  <span className="hidden sm:inline">Վերադառնալ</span>
+                  <span className="sm:hidden">Հետ</span>
+                </button>
+
+                <h2 className="text-xl sm:text-3xl font-bold flex-1 text-center sm:text-left">ԶԱՄԲՅՈՒՂ</h2>
+
+                {/* Մաքրել կոճակ */}
+                <button
+                  onClick={() => { if (confirm('Մաքրե՞լ զամբյուղը:')) setCart([]); }}
+                  className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:bg-red-500/20 shrink-0"
+                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}
+                >
+                  <Trash2 size={14} />
+                  <span>ՄԱՔՐԵԼ</span>
+                </button>
               </div>
               {cart.length === 0 ? (
                 <div className="text-center py-12 sm:py-20 border border-dashed border-white/10 rounded-3xl">
@@ -912,7 +952,7 @@ export default function App() {
                     {appliedPromo && <div className="flex justify-between text-xs sm:text-sm text-orange-400"><span>Զեղչ ({appliedPromo.discount_percent}%)</span><button onClick={() => setAppliedPromo(null)} className="underline hover:text-orange-300">Ջնջել</button></div>}
                   </div>
 
-                  <ShareCartButtons cartSectionRef={cartSectionRef} cart={cart} total={calculateTotal()} />
+                  <ShareCartButtons cartSectionRef={cartSectionRef} cart={cart} total={calculateTotal()} onClearCart={() => setCart([])} />
                   <CheckoutForm onSubmit={handleCheckout} isLoading={isCheckingOut} />
                 </div>
               )}
