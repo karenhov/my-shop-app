@@ -7,6 +7,7 @@ export interface Product {
   image: string;
   category: 'sneakers' | 'slippers';
   min_quantity?: number;
+  is_blocked?: boolean;
 }
 
 export interface CartItem extends Product {
