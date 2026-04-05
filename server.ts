@@ -175,6 +175,17 @@ async function initDb() {
     // Column probably already exists
   }
 
+  // Migration: Add is_blocked to products if it doesn't exist
+  try {
+    if (isPostgres) {
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE");
+    } else {
+      await query("ALTER TABLE products ADD COLUMN is_blocked INTEGER DEFAULT 0");
+    }
+  } catch (e) {
+    // Column probably already exists
+  }
+
   // Set default admin password if not exists
   const adminPass = await query("SELECT value FROM admin_settings WHERE key = 'password'");
   if (adminPass.rowCount === 0) {
@@ -256,6 +267,28 @@ async function startServer() {
         WHERE id = $8
       `, [name, price, code, description, image, category, min_quantity || 1, req.params.id]);
       
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Database error" });
+    }
+  });
+
+  // Bulk block/unblock products
+  app.post("/api/products/bulk-block", async (req, res) => {
+    try {
+      const { ids, is_blocked, password } = req.body;
+      const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
+      const currentPass = adminPassResult.rows[0];
+
+      if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "No IDs provided" });
+
+      const blockedValue = isPostgres ? is_blocked : (is_blocked ? 1 : 0);
+
+      for (const id of ids) {
+        await query("UPDATE products SET is_blocked = $1 WHERE id = $2", [blockedValue, id]);
+      }
+
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Database error" });
