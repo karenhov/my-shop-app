@@ -425,6 +425,8 @@ export default function App() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isChangingPass, setIsChangingPass] = useState(false);
   const [passChangeData, setPassChangeData] = useState({ oldPass: '', newPass: '', confirmPass: '' });
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
+  const [isBulkBlocking, setIsBulkBlocking] = useState(false);
   const cartSectionRef = useRef<HTMLDivElement>(null);
 
   const optimizeImageUrl = (url: string, width = 400, quality = 80) => {
@@ -675,6 +677,50 @@ export default function App() {
     }
   };
 
+  const bulkBlockProducts = async (block: boolean) => {
+    if (selectedProductIds.size === 0) return;
+    setIsBulkBlocking(true);
+    try {
+      const response = await fetch('/api/products/bulk-block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: Array.from(selectedProductIds),
+          is_blocked: block,
+          password: adminAuth
+        })
+      });
+      if (response.ok) {
+        setProducts(prev => prev.map(p =>
+          selectedProductIds.has(p.id) ? { ...p, is_blocked: block } : p
+        ));
+        setSelectedProductIds(new Set());
+        showNotification(block ? 'Ապրանքները բլոկավորված են' : 'Ապրանքները ապաբլոկավորված են');
+      }
+    } catch (error) {
+      alert('Սխալ: Չհաջողվեց կատարել գործողությունը');
+    } finally {
+      setIsBulkBlocking(false);
+    }
+  };
+
+  const toggleProductSelection = (id: number) => {
+    setSelectedProductIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (filtered: typeof products) => {
+    if (filtered.every(p => selectedProductIds.has(p.id))) {
+      setSelectedProductIds(new Set());
+    } else {
+      setSelectedProductIds(new Set(filtered.map(p => p.id)));
+    }
+  };
+
   const handleChangePassword = async (e: FormEvent) => {
     e.preventDefault();
     if (passChangeData.newPass !== passChangeData.confirmPass) {
@@ -844,7 +890,7 @@ export default function App() {
                     <button onClick={() => setView('categories')} className="text-sm font-bold text-blue-500 hover:text-blue-400 transition-colors">Տեսնել բոլորը →</button>
                   </div>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-                    {products.slice(0, 4).map(product => (
+                    {products.filter(p => !p.is_blocked).slice(0, 4).map(product => (
                       <ProductCard key={product.id} product={product} onAdd={() => addToCart(product)} />
                     ))}
                   </div>
@@ -875,6 +921,7 @@ export default function App() {
               <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
                 {Array.isArray(products) && products
                   .filter(p => p.category === category)
+                  .filter(p => !p.is_blocked)
                   .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.code.toLowerCase().includes(searchQuery.toLowerCase()))
                   .map(product => (
                     <ProductCard key={product.id} product={product} onAdd={() => addToCart(product)} />
@@ -997,17 +1044,110 @@ export default function App() {
                           <AddProductForm initialData={editingProduct} onAdd={(data) => updateProduct(editingProduct.id, data)} isEdit />
                         </div>
                       ) : <AddProductForm onAdd={addProduct} />}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {Array.isArray(products) && products.map(p => (
-                          <div key={p.id} className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/5">
-                            <img src={optimizeImageUrl(p.image, 100)} className="w-16 h-16 object-cover rounded-lg" referrerPolicy="no-referrer" />
-                            <div className="flex-1 min-w-0"><p className="font-bold truncate">{p.name}</p><p className="text-xs text-white/40">{p.category === 'sneakers' ? 'Կոշիկ' : 'Հողաթափ'}</p></div>
-                            <div className="flex gap-1">
-                              <button onClick={() => setEditingProduct(p)} className="text-blue-500 p-2 hover:bg-blue-500/10 rounded-lg"><Edit2 size={18} /></button>
-                              <button onClick={() => deleteProduct(p.id)} className="text-red-500 p-2 hover:bg-red-500/10 rounded-lg"><Trash2 size={18} /></button>
+                      <div className="space-y-4">
+                        {/* Bulk action toolbar */}
+                        {Array.isArray(products) && products.length > 0 && (() => {
+                          const adminProducts = products;
+                          const allSelected = adminProducts.length > 0 && adminProducts.every(p => selectedProductIds.has(p.id));
+                          return (
+                            <div className="flex flex-wrap items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+                              {/* Select All checkbox */}
+                              <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+                                <input
+                                  type="checkbox"
+                                  checked={allSelected}
+                                  onChange={() => toggleSelectAll(adminProducts)}
+                                  className="w-4 h-4 accent-blue-500 cursor-pointer"
+                                />
+                                <span className="text-sm font-bold text-white/70">
+                                  {allSelected ? 'Ապընտրել բոլորը' : 'Ընտրել բոլորը'}
+                                </span>
+                              </label>
+
+                              {selectedProductIds.size > 0 && (
+                                <>
+                                  <span className="text-xs text-white/40 shrink-0">
+                                    Ընտրված է <span className="text-blue-400 font-bold">{selectedProductIds.size}</span> ապրանք
+                                  </span>
+                                  <div className="flex gap-2 ml-auto">
+                                    <button
+                                      onClick={() => bulkBlockProducts(true)}
+                                      disabled={isBulkBlocking}
+                                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs transition-all disabled:opacity-50 active:scale-95"
+                                      style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444' }}
+                                    >
+                                      {isBulkBlocking ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                                      ԲԼՈԿԱՎՈՐԵԼ
+                                    </button>
+                                    <button
+                                      onClick={() => bulkBlockProducts(false)}
+                                      disabled={isBulkBlocking}
+                                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs transition-all disabled:opacity-50 active:scale-95"
+                                      style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', color: '#22c55e' }}
+                                    >
+                                      {isBulkBlocking ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                                      ԱՊԱԲԼՈԿԱՎՈՐԵԼ
+                                    </button>
+                                  </div>
+                                </>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })()}
+
+                        {/* Products grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {Array.isArray(products) && products.map(p => (
+                            <div
+                              key={p.id}
+                              onClick={() => toggleProductSelection(p.id)}
+                              className={`flex items-center gap-4 p-4 rounded-2xl border cursor-pointer transition-all select-none ${
+                                selectedProductIds.has(p.id)
+                                  ? 'bg-blue-500/10 border-blue-500/50'
+                                  : p.is_blocked
+                                  ? 'bg-red-500/5 border-red-500/20 opacity-60'
+                                  : 'bg-white/5 border-white/5 hover:border-white/20'
+                              }`}
+                            >
+                              {/* Checkbox */}
+                              <input
+                                type="checkbox"
+                                checked={selectedProductIds.has(p.id)}
+                                onChange={() => toggleProductSelection(p.id)}
+                                onClick={e => e.stopPropagation()}
+                                className="w-4 h-4 accent-blue-500 cursor-pointer shrink-0"
+                              />
+
+                              <div className="relative shrink-0">
+                                <img
+                                  src={optimizeImageUrl(p.image, 100)}
+                                  className={`w-16 h-16 object-cover rounded-lg ${p.is_blocked ? 'grayscale' : ''}`}
+                                  referrerPolicy="no-referrer"
+                                />
+                                {p.is_blocked && (
+                                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50">
+                                    <X size={20} className="text-red-400" />
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold truncate">{p.name}</p>
+                                <p className="text-xs text-white/40">{p.category === 'sneakers' ? 'Կոշիկ' : 'Հողաթափ'} · {p.price.toLocaleString()} ֏</p>
+                                {p.is_blocked && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full mt-1">
+                                    <X size={9} /> ԲԼՈԿԱՎՈՐՎԱԾ
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                                <button onClick={() => setEditingProduct(p)} className="text-blue-500 p-2 hover:bg-blue-500/10 rounded-lg"><Edit2 size={18} /></button>
+                                <button onClick={() => deleteProduct(p.id)} className="text-red-500 p-2 hover:bg-red-500/10 rounded-lg"><Trash2 size={18} /></button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}
