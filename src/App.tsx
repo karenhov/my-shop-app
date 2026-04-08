@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, FormEvent } from 'react';
+import React, { useState, useEffect, useRef, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShoppingCart, 
@@ -30,8 +30,8 @@ function ViberIcon({ size = 24 }: { size?: number }) {
       <rect x="1" y="1" width="58" height="54" rx="14" ry="14" fill="white" opacity="0.2"/>
       <path d="M14 55 Q10 66 8 70 Q18 63 24 55Z" fill="white" opacity="0.2"/>
       <path d="M43 38.5c-1-.5-5.8-2.9-6.7-3.2-.9-.3-1.5-.5-2.2.5-.6 1-2.5 3.2-3.1 3.8-.6.6-1.2.7-2.1.2-1-.5-4.2-1.5-8-4.9-3-2.6-5-5.9-5.5-6.9-.6-1-.1-1.5.4-2 .5-.5 1-1.1 1.5-1.7.5-.5.7-1 1-1.6.3-.7.1-1.3-.1-1.8-.2-.5-2.1-5.4-3-7.4-.8-1.9-1.6-1.6-2.2-1.6l-1.8-.04c-.6 0-1.7.2-2.6 1.2C10.4 14.2 8 16.5 8 20.8s3.5 9.6 4 10.2c.5.6 7 10.7 16.9 14.9 2.3 1 4.2 1.6 5.6 2.1 2.4.7 4.5.6 6.2.3 1.9-.3 5.9-2.4 6.7-4.7.8-2.3.8-4.3.6-4.7-.2-.5-.8-.8-1.9-1.4z" fill="white"/>
-      <path d="M39 6 a16 16 0 0 1 0 22" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <path d="M44.5 1 a23 23 0 0 1 0 32" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M39 6 a16 16 0 0 1 0 22" stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      <path d="M44.5 1 a23 23 0 0 1 0 32" stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
     </svg>
   );
 }
@@ -71,7 +71,10 @@ function ShareCartButtons({ cartSectionRef, cart, total, onClearCart }: {
         body: JSON.stringify({ image: dataUrl }),
       });
 
-      if (!response.ok) throw new Error('Upload failed');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Upload failed');
+      }
       const { url: imageUrl } = await response.json();
 
       setStatusMsg('Բացվում է հավելվածը...');
@@ -221,7 +224,10 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: dataUrl }),
       });
-      if (!response.ok) throw new Error('Upload failed');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Upload failed');
+      }
       const { url: imageUrl } = await response.json();
       setStatusMsg('Բացվում...');
       const text = encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏`);
