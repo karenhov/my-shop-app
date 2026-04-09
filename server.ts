@@ -166,7 +166,11 @@ async function initDb() {
     if (isPostgres) {
       await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS min_quantity INTEGER DEFAULT 1");
     } else {
-      await query("ALTER TABLE products ADD COLUMN min_quantity INTEGER DEFAULT 1");
+      // SQLite: check columns before altering
+      const cols = sqlite.prepare("PRAGMA table_info(products)").all() as any[];
+      if (!cols.some((c: any) => c.name === 'min_quantity')) {
+        await query("ALTER TABLE products ADD COLUMN min_quantity INTEGER DEFAULT 1");
+      }
     }
   } catch (e) {
     // Column probably already exists
@@ -177,7 +181,10 @@ async function initDb() {
     if (isPostgres) {
       await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE");
     } else {
-      await query("ALTER TABLE products ADD COLUMN is_blocked INTEGER DEFAULT 0");
+      const cols = sqlite.prepare("PRAGMA table_info(products)").all() as any[];
+      if (!cols.some((c: any) => c.name === 'is_blocked')) {
+        await query("ALTER TABLE products ADD COLUMN is_blocked INTEGER DEFAULT 0");
+      }
     }
   } catch (e) {
     // Column probably already exists
@@ -209,9 +216,13 @@ async function startServer() {
   // Products
   app.get("/api/products", async (req, res) => {
     try {
+      if (!isPostgres && !sqlite) {
+        return res.status(503).json({ error: "Database not available. Please check server configuration." });
+      }
       const result = await query("SELECT * FROM products ORDER BY id DESC");
       res.json(result.rows);
     } catch (error) {
+      console.error("GET /api/products error:", error);
       res.status(500).json({ error: "Database error" });
     }
   });
