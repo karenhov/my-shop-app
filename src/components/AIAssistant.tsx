@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessagesSquare, X, Send, Bot, User, Loader2, Sparkles, Camera } from 'lucide-react';
+import { MessagesSquare, X, Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
-import { toJpeg } from 'html-to-image';
 
 // Initialize Gemini API
 const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
@@ -12,7 +11,6 @@ const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  image?: string;
 }
 
 export function AIAssistant({ products = [] }: { products?: any[] }) {
@@ -24,7 +22,7 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       content: 'Ողջույն! Ես ձեր AI օգնականն եմ: Ինչպե՞ս կարող եմ օգնել ձեզ այսօր:' 
     }
   ]);
-  const [input, setInput] = useState('');
+  const [userMessage, setUserMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -33,11 +31,8 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
   };
 
   useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.role === 'user') {
-      scrollToBottom();
-    }
-  }, [messages]);
+    scrollToBottom();
+  }, [messages, isLoading]);
 
   useEffect(() => {
     const hasBeenWelcomed = localStorage.getItem('ai_assistant_welcomed');
@@ -61,55 +56,24 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
     localStorage.setItem('ai_assistant_welcomed', 'true');
   };
 
-  const captureSiteImage = async () => {
-    const element = document.getElementById('site-main-content');
-    if (!element) return null;
-    
-    try {
-      // Use toJpeg for better performance and smaller size
-      // Reduced pixelRatio and quality for speed
-      const dataUrl = await toJpeg(element, {
-        backgroundColor: '#09090b',
-        pixelRatio: 1,
-        quality: 0.7,
-        filter: (node) => {
-          // Exclude the AI assistant container and any overlays
-          if (node.classList?.contains('ai-assistant-container')) return false;
-          if (node.classList?.contains('fixed') && node.classList?.contains('inset-0')) return false;
-          return true;
-        },
-        height: window.innerHeight,
-        width: window.innerWidth,
-        style: {
-          transform: `translateY(-${window.scrollY}px)`,
-          transformOrigin: 'top left',
-        }
-      });
-
-      return dataUrl;
-    } catch (err) {
-      console.error('Capture error:', err);
-      return null;
-    }
-  };
-
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!userMessage.trim() || isLoading) return;
 
-    const userMessage = input.trim();
+    const inputMessage = userMessage.trim();
     
-    // Set loading state IMMEDIATELY to provide visual feedback
+    // 1. Update UI immediately
     setIsLoading(true);
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-
-    // Capture screenshot in the background
-    const siteScreenshot = await captureSiteImage();
+    setUserMessage('');
+    setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
 
     try {
-      const model = "gemini-3-flash-preview";
+      // Use gemini-3-flash-preview as recommended by the SDK guidelines
+      const modelName = "gemini-3-flash-preview";
       
-      // Prepare product data for the AI to use specific images
+      if (!import.meta.env.VITE_GEMINI_API_KEY) {
+        throw new Error("API Key is missing. Please check your environment variables.");
+      }
+
       const productData = products.slice(0, 15).map(p => ({
         name: p.name,
         image: p.image,
@@ -121,23 +85,27 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       const systemInstruction = `Դուք "EdgSport" խանութի պրոֆեսիոնալ AI օգնականն եք: 
 Ձեր նպատակն է տալ ԿՈՆԿՐԵՏ և ՃՇԳՐԻՏ պատասխաններ կայքի օգտագործման վերաբերյալ:
 
-ԿԱՐԵՎՈՐ ԿԱՆՈՆՆԵՐ:
-1. Պատասխանեք ՄԻԱՅՆ կայքին և ապրանքներին վերաբերող հարցերին:
-2. Ձեզ տրամադրված է կայքի ընթացիկ screenshot-ը: Օգտագործեք այն՝ օգտատիրոջը ցույց տալու համար, թե ՈՐՏԵՂ է գտնվում անհրաժեշտ կոճակը կամ բաժինը:
-3. Յուրաքանչյուր պատասխան պետք է լինի կոնկրետ: Օրինակ՝ "Սեղմեք վերևի աջ անկյունում գտնվող նարնջագույն զամբյուղի կոճակը":
-4. Եթե հարցը վերաբերում է ապրանքին, նշեք դրա գինը և կոդը:
-5. Օգտագործեք Markdown: Կարևոր բառերը դարձրեք **bold**:
+ԿԱՅՔԻ ՆՊԱՏԱԿԸ:
+Կայքը ստեղծված է նրա համար, որպեսզի ձեր կողմից արդեն իսկ հավանած տեսականիները լինեն պատրաստ նախօրոք:
 
-Տեսողական ուղեցույց.
-- Օգտագործեք սլաքներ (⬇️, ➡️, ⬅️, ⬆️)՝ ուղղությունները ցույց տալու համար:
-- Նկարագրեք տարրերի գույները (օրինակ՝ "Կապույտ կոճակ", "Սպիտակ մենյու"):
+ԿԱՐԵՎՈՐ ՏԵՂԵԿՈՒԹՅՈՒՆՆԵՐ ԿԱՅՔԻ ՄԱՍԻՆ:
+1. **Նավիգացիա**: Գլխավոր էջում սեղմելով **"Դիտել տեսականին"** կոճակը, դուք կտեսնեք **"Սպորտային կոշիկներ"** և **"Հողաթափեր"** բաժինները: Սեղմելով դրանցից մեկի վրա՝ կբացվի համապատասխան տեսականին:
+2. **Ապրանքի ընտրություն**: Ապրանքը ընտրելու համար պետք է սեղմել դրա վրա առկա **"Ուղղարկել զամբյուղ"** կոճակը:
+3. **Զամբյուղի բաժին**: Գտնվում է կայքի ամենավերևի էջի **աջ անկյունում**: Այն սեղմելով կհայտնվեք զամբյուղ բաժնում, որտեղ կարող եք դիտել ընտրված ապրանքները, ավելացնել կամ պակասեցնել քանակները, կամ ջնջել ապրանքը:
+4. **Կիսվել Զամբյուղով**: **Viber**, **WhatsApp** և **Telegram** կոճակները հայտնվում են զամբյուղում միայն այն դեպքում, երբ այնտեղ առկա է **առնվազն մեկ ապրանք**: Դրանք թույլ են տալիս ուղարկել ձեր զամբյուղի տեսականին (նկարներով և քանակներով) համապատասխան հասցեատիրոջը: Սխալի դեպքում փորձեք նորից կամ կապնվեք ադմինի հետ:
+5. **Պատվերի հաստատում**: Պատվերը ձևակերպելու համար լրացրեք դաշտերը, սեղմեք **"ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐԸ"** և զանգահարեք հասցեատիրոջը: Սխալ պատվերի դեպքում տեղյակ պահեք կայքի տիրոջը կամ ադմինին:
+6. **Նկարների դիտում**: Նկարը ավելի մեծ դիտելու համար **սեղմած պահեք նկարի վրա**, և կհայտնվեն համապատասխան տարբերակներ այն մեծացնելու համար: Եթե նկարները լիարժեք չեն երևում, թարմացրեք էջը կամ սպասեք:
+7. **Պրոմոկոդ**: Նախատեսված է զեղչի համար: Այն պետք է վերցնել կայքի **ադմինից**:
+8. **Զամբյուղի պահպանում**: Ձեր ընտրված ապրանքները զամբյուղում երևում են այնքան ժամանակ, քանի դեռ չեք կատարել պատվեր կամ չեք կիսվել դրանցով սոց. հավելվածների միջոցով:
+9. **Բջջային տարբերակ (Mobile)**: Կայքի ներքևի մասում կա նավիգացիոն տող (Bottom Nav) հետևյալ կոճակներով՝ **ԳԼԽԱՎՈՐ**, **ԲԱԺԻՆՆԵՐ**, **ԶԱՄԲՅՈՒՂ** և **ԱԴՄԻՆ**:
 
-Կայքի հիմնական տարրերը.
-- **Գլխավոր Մենյու**: Գտնվում է վերևում: Այնտեղ կան "Ապրանքներ", "Բաժիններ" և "Զամբյուղ":
-- **Զամբյուղ**: Վերևի աջ մասում (Desktop) կամ ներքևի նավիգացիոն տողում (Mobile):
-- **Ապրանքի քարտ**: Ունի "Ավելացնել" կոճակ, որը ապրանքը ուղարկում է զամբյուղ:
+ԿԱՆՈՆՆԵՐ:
+- Պատասխանեք ՄԻԱՅՆ կայքին և ապրանքներին վերաբերող հարցերին:
+- Յուրաքանչյուր պատասխան պետք է լինի կոնկրետ: Օրինակ՝ "Սեղմեք ներքևի նավիգացիոն տողի կենտրոնում գտնվող ԶԱՄԲՅՈՒՂ կոճակը":
+- Եթե հարցը վերաբերում է ապրանքին, նշեք դրա գինը և կոդը:
+- Օգտագործեք Markdown: Կարևոր բառերը դարձրեք **bold**:
 
-Ահա որոշ ապրանքներ կայքից.
+Ահա որոշ ապրանքներ կայքից:
 ${JSON.stringify(productData)}
 
 Խոսեք միայն հայերենով: Եղեք շատ հստակ և մի տվեք ընդհանուր պատասխաններ:`;
@@ -147,20 +115,13 @@ ${JSON.stringify(productData)}
         parts: [{ text: m.content }]
       }));
 
-      const userParts: any[] = [{ text: userMessage }];
-      if (siteScreenshot) {
-        userParts.push({
-          inlineData: {
-            mimeType: "image/png",
-            data: siteScreenshot.split(',')[1]
-          }
-        });
-      }
+      contents.push({ role: 'user', parts: [{ text: inputMessage }] });
 
-      contents.push({ role: 'user', parts: userParts });
+      // Add a placeholder message for the assistant that we will stream into
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
-      const response = await genAI.models.generateContent({
-        model: model,
+      const result = await genAI.models.generateContentStream({
+        model: modelName,
         contents: contents,
         config: {
           systemInstruction: systemInstruction,
@@ -168,8 +129,30 @@ ${JSON.stringify(productData)}
         },
       });
 
-      const aiResponse = response.text || "Ցավոք, չկարողացա պատասխանել ձեր հարցին: Խնդրում եմ փորձեք նորից:";
-      setMessages(prev => [...prev, { role: 'assistant', content: aiResponse, image: siteScreenshot || undefined }]);
+      let fullResponse = "";
+      for await (const chunk of result) {
+        const chunkText = chunk.text;
+        
+        // Process each chunk with a slight delay to simulate typing
+        for (let i = 0; i < chunkText.length; i++) {
+          fullResponse += chunkText[i];
+          
+          // Update the last message in the list
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMsg = newMessages[newMessages.length - 1];
+            if (lastMsg && lastMsg.role === 'assistant') {
+              lastMsg.content = fullResponse;
+            }
+            return newMessages;
+          });
+          
+          // Small delay between characters for a more natural feel
+          // 15ms is a good balance between "too fast" and "too slow"
+          await new Promise(resolve => setTimeout(resolve, 15));
+        }
+      }
+
     } catch (error) {
       console.error("AI Error:", error);
       setMessages(prev => [...prev, { role: 'assistant', content: "Կներեք, տեխնիկական խնդիր առաջացավ: Խնդրում եմ փորձեք մի փոքր ուշ:" }]);
@@ -258,44 +241,46 @@ ${JSON.stringify(productData)}
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                {messages.map((msg, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
-                  >
-                    <div className={`flex gap-2 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                      <div className={`mt-1 p-1 rounded-full flex-shrink-0 h-fit ${msg.role === 'user' ? 'bg-[#3b82f6]' : 'bg-[#f97316]'}`}>
-                        {msg.role === 'user' ? <User size={12} className="text-white" /> : <Bot size={12} className="text-white" />}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar min-h-0">
+                  {messages.map((msg, idx) => (
+                    <motion.div 
+                      key={idx}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.4 }}
+                      className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                    >
+                      <div className={`flex gap-2 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                        <div className={`mt-1 p-1 rounded-full flex-shrink-0 h-fit ${msg.role === 'user' ? 'bg-[#3b82f6]' : 'bg-[#f97316]'}`}>
+                          {msg.role === 'user' ? <User size={12} className="text-white" /> : <Bot size={12} className="text-white" />}
+                        </div>
+                        <div className={`p-3 rounded-2xl text-sm markdown-content shadow-lg ${
+                          msg.role === 'user' 
+                            ? 'bg-[#3b82f6] text-white rounded-tr-none' 
+                            : 'bg-zinc-800 text-white border border-white/10 rounded-tl-none'
+                        }`}>
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          {isLoading && idx === messages.length - 1 && msg.role === 'assistant' && (
+                            <span className="typing-cursor" />
+                          )}
+                        </div>
                       </div>
-                      <div className={`p-3 rounded-2xl text-sm markdown-content ${
-                        msg.role === 'user' 
-                          ? 'bg-[#3b82f6] text-white rounded-tr-none' 
-                          : 'bg-white/5 text-gray-200 border border-white/10 rounded-tl-none'
-                      }`}>
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                        {msg.image && msg.role === 'assistant' && (
-                          <div className="mt-3 border border-white/10 rounded-lg overflow-hidden bg-black/40">
-                            <div className="bg-white/5 px-2 py-1 text-[10px] text-white/40 flex items-center gap-1">
-                              <Camera size={10} /> Կայքի ընթացիկ տեսքը
-                            </div>
-                            <img src={msg.image} alt="Site state" className="w-full h-auto" referrerPolicy="no-referrer" />
-                          </div>
-                        )}
+                    </motion.div>
+                  ))}
+                  {isLoading && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex justify-start"
+                    >
+                      <div className="flex gap-2 items-center bg-zinc-800 border border-white/10 p-3 rounded-2xl rounded-tl-none shadow-lg">
+                        <Loader2 size={14} className="animate-spin text-[#f97316]" />
+                        <span className="text-xs text-gray-300">Մտածում եմ...</span>
                       </div>
-                    </div>
-                  </div>
-                ))}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="flex gap-2 items-center bg-white/5 border border-white/10 p-3 rounded-2xl rounded-tl-none">
-                      <Loader2 size={14} className="animate-spin text-[#f97316]" />
-                      <span className="text-xs text-gray-400">Մտածում եմ...</span>
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
+                    </motion.div>
+                  )}
+                  <div ref={messagesEndRef} className="h-2" />
+                </div>
 
               {/* Input */}
               <div className="p-4 border-t border-white/10 bg-black/20 shrink-0">
@@ -305,14 +290,14 @@ ${JSON.stringify(productData)}
                 >
                   <input
                     type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    value={userMessage}
+                    onChange={(e) => setUserMessage(e.target.value)}
                     placeholder="Գրեք ձեր հարցը..."
                     className="flex-1 bg-white/5 border border-white/10 rounded-xl py-2.5 pl-4 pr-12 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-[#3b82f6] transition-colors"
                   />
                   <button
                     type="submit"
-                    disabled={!input.trim() || isLoading}
+                    disabled={!userMessage.trim() || isLoading}
                     className="absolute right-1.5 p-2 bg-[#3b82f6] hover:bg-[#2563eb] disabled:opacity-50 disabled:hover:bg-[#3b82f6] text-white rounded-lg transition-all"
                   >
                     <Send size={16} />
@@ -354,6 +339,18 @@ ${JSON.stringify(productData)}
         }
         .markdown-content p:last-child {
           margin-bottom: 0;
+        }
+        .typing-cursor::after {
+          content: '▋';
+          display: inline-block;
+          vertical-align: middle;
+          animation: blink 1s step-end infinite;
+          margin-left: 2px;
+          color: #f97316;
+        }
+        @keyframes blink {
+          from, to { opacity: 1; }
+          50% { opacity: 0; }
         }
       `}} />
     </>
