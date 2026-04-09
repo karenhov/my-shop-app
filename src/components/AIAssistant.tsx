@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import { toJpeg } from 'html-to-image';
 
 // Initialize Gemini API
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
 
 interface Message {
   role: 'user' | 'assistant';
