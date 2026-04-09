@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Product, CartItem, PromoCode, Order } from './types';
 import { toPng } from 'html-to-image';
+import { AIAssistant } from './components/AIAssistant';
 
 // ---- Viber SVG Icon (official phone + signal waves + speech bubble) ----
 function ViberIcon({ size = 24 }: { size?: number }) {
@@ -767,9 +768,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-500/30 relative overflow-x-hidden">
-      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/15 blur-[120px] rounded-full pointer-events-none" />
-      <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-orange-600/10 blur-[120px] rounded-full pointer-events-none" />
-      <div className="fixed top-[40%] right-[-5%] w-[30%] h-[30%] bg-orange-500/5 blur-[100px] rounded-full pointer-events-none" />
+      <div id="site-main-content" className="relative">
+        <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/15 blur-[120px] rounded-full pointer-events-none" />
+        <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-orange-600/10 blur-[120px] rounded-full pointer-events-none" />
+        <div className="fixed top-[40%] right-[-5%] w-[30%] h-[30%] bg-orange-500/5 blur-[100px] rounded-full pointer-events-none" />
       
       <AnimatePresence>
         {notification && (
@@ -842,6 +844,9 @@ export default function App() {
 
           <div className="flex items-center gap-3 sm:gap-6 shrink-0">
             <button onClick={() => setView('categories')} className="hidden sm:block text-sm font-medium text-white/80 hover:text-white transition-colors">Ապրանքներ</button>
+            
+            <AIAssistant products={products} />
+
             <button onClick={() => { if (view !== 'cart' && view !== 'admin') setPreviousView(view as 'home' | 'categories' | 'products'); setView('cart'); }} className="relative p-2 hover:bg-white/5 rounded-full transition-colors">
               <ShoppingCart size={20} />
               {cart.length > 0 && (
@@ -866,9 +871,11 @@ export default function App() {
                   <span className="bg-gradient-to-r from-blue-500 to-orange-500 bg-clip-text text-transparent">Մեծածախ Վաճառք</span>
                 </h1>
                 <p className="text-white/70 max-w-2xl mb-10 text-base sm:text-lg font-medium leading-relaxed">Բարձրորակ ապրանքներ ձեր բիզնեսի համար: Արագ առաքում և լավագույն գներ:</p>
-                <button onClick={() => setView('categories')} className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-br from-blue-600 to-orange-600 rounded-2xl font-bold text-sm sm:text-lg hover:scale-105 transition-all active:scale-95 shadow-xl shadow-orange-500/20 flex items-center justify-center gap-3 border border-white/10">
-                  <ShoppingCart size={20} /> Դիտել Տեսականին
-                </button>
+                <div className="relative w-full sm:w-auto">
+                  <button onClick={() => setView('categories')} className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-br from-blue-600 to-orange-600 rounded-2xl font-bold text-sm sm:text-lg hover:scale-105 transition-all active:scale-95 shadow-xl shadow-orange-500/20 flex items-center justify-center gap-3 border border-white/10">
+                    <ShoppingCart size={20} /> Դիտել Տեսականին
+                  </button>
+                </div>
               </div>
 
               <div className="w-full max-w-6xl mt-20 px-2">
@@ -917,7 +924,9 @@ export default function App() {
               <div className="flex flex-col items-center gap-4 mb-8">
                 <div className="flex items-center w-full gap-4">
                   <button onClick={() => setView('categories')} className="p-2 hover:bg-white/5 rounded-full"><ChevronLeft size={24} /></button>
-                  <h2 className="text-2xl sm:text-3xl font-bold uppercase tracking-tight flex-1">{category === 'sneakers' ? 'Սպորտային կոշիկներ' : 'Հողաթափեր'}</h2>
+                  <div className="flex items-center justify-between w-full">
+                    <h2 className="text-2xl sm:text-3xl font-bold uppercase tracking-tight">{category === 'sneakers' ? 'Սպորտային կոշիկներ' : 'Հողաթափեր'}</h2>
+                  </div>
                 </div>
                 <div className="relative w-full max-w-md">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" size={18} />
@@ -1254,6 +1263,7 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+      </div>
     </div>
   );
 }
