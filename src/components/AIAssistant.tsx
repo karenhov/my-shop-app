@@ -6,8 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 
 // Initialize Gemini API
-const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
-const genAI = new GoogleGenAI({ apiKey });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface Message {
   role: 'user' | 'assistant';
@@ -68,10 +67,7 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
     setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
 
     try {
-      // Use gemini-3-flash-preview as recommended by the SDK guidelines
-      const modelName = "gemini-3-flash-preview";
-      
-      if (!(import.meta as any).env?.VITE_GEMINI_API_KEY) {
+      if (!process.env.GEMINI_API_KEY) {
         throw new Error("API Key is missing. Please check your environment variables.");
       }
 
@@ -121,8 +117,9 @@ ${JSON.stringify(productData)}
       // Add a placeholder message for the assistant that we will stream into
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
-      const result = await genAI.models.generateContentStream({
-        model: modelName,
+      // Use the correct SDK pattern for Gemini API
+      const result = await ai.models.generateContentStream({
+        model: "gemini-3-flash-preview",
         contents: contents,
         config: {
           systemInstruction: systemInstruction,
