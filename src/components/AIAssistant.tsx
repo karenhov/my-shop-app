@@ -6,7 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 
 // Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Moved inside handleSend for robustness
 
 interface Message {
   role: 'user' | 'assistant';
@@ -67,9 +67,11 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
     setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
 
     try {
-      if (!process.env.GEMINI_API_KEY) {
-        throw new Error("API Key is missing. Please check your environment variables.");
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("API Key is missing. Please check your environment variables in Render (VITE_GEMINI_API_KEY).");
       }
+      const ai = new GoogleGenAI({ apiKey });
 
       const productData = products.slice(0, 15).map(p => ({
         name: p.name,
