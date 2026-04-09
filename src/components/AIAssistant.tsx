@@ -359,4 +359,3 @@ ${JSON.stringify(productData)}
     </>
   );
 }
-
