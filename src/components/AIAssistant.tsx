@@ -126,6 +126,9 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       setIsLoading(true);
       setUserMessage('');
       setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
+    } else {
+      // On retry, ensure loading is still true and add empty assistant placeholder if needed
+      setIsLoading(true);
     }
 
     try {
@@ -184,9 +187,9 @@ ${JSON.stringify(productData)}
         setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
       }
 
-      // Use gemini-flash-latest for better availability
+      // Use stable model name for better availability
       const result = await ai.models.generateContentStream({
-        model: "gemini-flash-latest",
+        model: "gemini-2.0-flash",
         contents: contents,
         config: {
           systemInstruction: systemInstruction,
@@ -196,7 +199,8 @@ ${JSON.stringify(productData)}
 
       let fullResponse = "";
       for await (const chunk of result) {
-        const chunkText = chunk.text;
+        const chunkText = chunk.text ?? "";
+        if (!chunkText) continue;
         
         for (let i = 0; i < chunkText.length; i++) {
           fullResponse += chunkText[i];
@@ -217,14 +221,15 @@ ${JSON.stringify(productData)}
     } catch (error: any) {
       console.error("AI Error:", error);
       
-      // Automatic retry for 429 error
-      if ((error?.message?.includes('429') || error?.status === 429) && !isRetry) {
-        console.log("Rate limit hit, retrying in 3 seconds...");
-        await new Promise(resolve => setTimeout(resolve, 3000));
+      // Automatic retry for 429 error — only once, with longer delay
+      const is429 = error?.message?.includes('429') || error?.status === 429 || error?.message?.includes('Too Many Requests');
+      if (is429 && !isRetry) {
+        console.log("Rate limit hit, retrying in 8 seconds...");
+        await new Promise(resolve => setTimeout(resolve, 8000));
         return handleSend(true);
       }
 
-      // Use local fallback if API fails
+      // Use local fallback if API fails (including when retry also fails)
       const fallbackResponse = getLocalFallbackResponse(inputMessage, products);
       
       setMessages(prev => {
