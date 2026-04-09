@@ -17,45 +17,42 @@ let pool: any = null;
 let sqlite: any = null;
 
 async function setupDatabase() {
-  if (isPostgres) {
+  try {
+    if (isPostgres) {
       const rawUrl = process.env.DATABASE_URL!;
       console.log(`DATABASE_URL detected (length: ${rawUrl.length})`);
       
-      // Check for common placeholders
-    if (rawUrl.includes("[YOUR-PASSWORD]") || rawUrl.includes("YOUR_PASSWORD") || rawUrl.includes("<password>")) {
-      console.error("❌ DATABASE_URL contains a placeholder! Please replace [YOUR-PASSWORD] with your actual Supabase password in the Secrets panel.");
-      isPostgres = false;
-    } else if (rawUrl.includes(":[") || rawUrl.includes("]@")) {
-      console.error("❌ DATABASE_URL seems to have brackets [ ] around the password. Please remove them.");
-      isPostgres = false;
-    } else {
-      try {
-        const dbUrl = new URL(rawUrl);
-        console.log(`Attempting to connect to Postgres host: ${dbUrl.host}`);
-        
-        pool = new Pool({
-          connectionString: rawUrl,
-          ssl: { rejectUnauthorized: false },
-          connectionTimeoutMillis: 5000,
-        });
-        // Test connection
-        await pool.query("SELECT 1");
-        console.log("✅ Connected to Postgres successfully");
-      } catch (error: any) {
-        console.error("❌ Postgres connection failed:", error.message);
-        if (error.message.includes("authentication failed")) {
-          console.error("👉 TIP: Check if your password is correct. If it contains special characters like @, #, or !, you must URL-encode them (e.g., @ becomes %40).");
-        }
-        console.log("⚠️ Falling back to SQLite...");
+      if (rawUrl.includes("[YOUR-PASSWORD]") || rawUrl.includes("YOUR_PASSWORD") || rawUrl.includes("<password>")) {
+        console.error("❌ DATABASE_URL contains a placeholder!");
         isPostgres = false;
-        pool = null;
+      } else {
+        try {
+          pool = new Pool({
+            connectionString: rawUrl,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 10000,
+          });
+          await pool.query("SELECT 1");
+          console.log("✅ Connected to Postgres successfully");
+        } catch (error: any) {
+          console.error("❌ Postgres connection failed:", error.message);
+          isPostgres = false;
+          pool = null;
+        }
       }
     }
-  }
 
-  if (!isPostgres) {
-    sqlite = new Database("database.sqlite");
-    console.log("Using SQLite database");
+    if (!isPostgres) {
+      try {
+        sqlite = new Database("database.sqlite");
+        console.log("✅ Using SQLite database");
+      } catch (sqliteError: any) {
+        console.error("❌ SQLite initialization failed:", sqliteError.message);
+        sqlite = null;
+      }
+    }
+  } catch (globalDbError: any) {
+    console.error("❌ Global database setup error:", globalDbError.message);
   }
 }
 
