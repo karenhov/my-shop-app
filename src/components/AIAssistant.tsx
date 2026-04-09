@@ -13,6 +13,66 @@ interface Message {
   content: string;
 }
 
+// Local FAQ Database for fallback
+const FAQ_DATA = [
+  {
+    keywords: ['զամբյուղ', 'basket', 'ավելացնել', 'ջնջել'],
+    answer: "🛒 **Զամբյուղի** բաժինը գտնվում է կայքի վերևի աջ անկյունում: Ապրանք ավելացնելու համար սեղմեք **'Ուղղարկել զամբյուղ'** կոճակը: Այնտեղ կարող եք փոխել քանակը կամ ջնջել ապրանքը:"
+  },
+  {
+    keywords: ['պատվեր', 'order', 'հաստատել', 'գնել'],
+    answer: "📦 **Պատվերը** ձևակերպելու համար մտեք զամբյուղ, լրացրեք ձեր տվյալները և սեղմեք **'ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐԸ'**: Դրանից հետո կարող եք կապնվել մեզ հետ Viber-ով կամ Telegram-ով:"
+  },
+  {
+    keywords: ['կապ', 'ադմին', 'հեռախոս', 'viber', 'whatsapp', 'telegram'],
+    answer: "📞 Մեզ հետ կարող եք կապնվել **Viber**, **WhatsApp** կամ **Telegram** հավելվածների միջոցով: Կոճակները կհայտնվեն զամբյուղում ապրանք ավելացնելուց հետո, կամ կարող եք օգտվել ներքևի նավիգացիոն տողի **'ԱԴՄԻՆ'** բաժնից:"
+  },
+  {
+    keywords: ['նկար', 'մեծացնել', 'դիտել'],
+    answer: "🖼️ Նկարը մեծ դիտելու համար **սեղմած պահեք նկարի վրա**: Եթե նկարը չի բացվում, փորձեք թարմացնել էջը:"
+  },
+  {
+    keywords: ['զեղչ', 'պրոմոկոդ', 'promo'],
+    answer: "🎫 **Պրոմոկոդը** նախատեսված է զեղչերի համար: Այն կարող եք ստանալ մեր ադմինիստրատորից:"
+  },
+  {
+    keywords: ['բարև', 'ողջույն', 'hi', 'hello'],
+    answer: "Ողջույն! Ես EdgSport-ի AI օգնականն եմ: Ինչո՞վ կարող եմ օգնել ձեզ:"
+  }
+];
+
+const getLocalFallbackResponse = (query: string, products: any[]) => {
+  const lowerQuery = query.toLowerCase();
+  
+  // Check FAQ first
+  for (const item of FAQ_DATA) {
+    if (item.keywords.some(key => lowerQuery.includes(key))) {
+      return item.answer;
+    }
+  }
+
+  // Check if asking about products in general
+  if (lowerQuery.includes('ապրանք') || lowerQuery.includes('տեսականի') || lowerQuery.includes('ինչ կա')) {
+    return "Մեր տեսականին կարող եք տեսնել գլխավոր էջի **'Դիտել տեսականին'** կոճակը սեղմելով: Ունենք սպորտային կոշիկներ և հողաթափեր:";
+  }
+
+  // Check for specific product names or codes
+  const foundProducts = products.filter(p => 
+    lowerQuery.includes(p.code.toLowerCase()) || 
+    lowerQuery.includes(p.name.toLowerCase())
+  ).slice(0, 3);
+
+  if (foundProducts.length > 0) {
+    let resp = "Ահա ձեր փնտրած ապրանքները:\n\n";
+    foundProducts.forEach(p => {
+      resp += `🔹 **${p.name}**\n💰 Գին: ${p.price} դրամ\n🔢 Կոդ: ${p.code}\n\n`;
+    });
+    return resp;
+  }
+
+  return "Կներեք, ես չկարողացա գտնել կոնկրետ պատասխան ձեր հարցին մեր պահուստային բազայում: Խնդրում եմ փորձեք մի փոքր ուշ, երբ AI համակարգը նորից հասանելի լինի:";
+};
+
 export function AIAssistant({ products = [] }: { products?: any[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showBubble, setShowBubble] = useState(false);
@@ -56,15 +116,17 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
     localStorage.setItem('ai_assistant_welcomed', 'true');
   };
 
-  const handleSend = async () => {
-    if (!userMessage.trim() || isLoading) return;
+  const handleSend = async (isRetry = false) => {
+    if (!userMessage.trim() && !isRetry) return;
+    if (isLoading && !isRetry) return;
 
-    const inputMessage = userMessage.trim();
+    const inputMessage = isRetry ? messages[messages.length - 1].content : userMessage.trim();
     
-    // 1. Update UI immediately
-    setIsLoading(true);
-    setUserMessage('');
-    setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
+    if (!isRetry) {
+      setIsLoading(true);
+      setUserMessage('');
+      setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
+    }
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
@@ -73,9 +135,8 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       }
       const ai = new GoogleGenAI({ apiKey });
 
-      const productData = products.slice(0, 15).map(p => ({
+      const productData = products.slice(0, 10).map(p => ({
         name: p.name,
-        image: p.image,
         price: p.price,
         code: p.code,
         category: p.category
@@ -96,7 +157,7 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
 6. **Նկարների դիտում**: Նկարը ավելի մեծ դիտելու համար **սեղմած պահեք նկարի վրա**, և կհայտնվեն համապատասխան տարբերակներ այն մեծացնելու համար: Եթե նկարները լիարժեք չեն երևում, թարմացրեք էջը կամ սպասեք:
 7. **Պրոմոկոդ**: Նախատեսված է զեղչի համար: Այն պետք է վերցնել կայքի **ադմինից**:
 8. **Զամբյուղի պահպանում**: Ձեր ընտրված ապրանքները զամբյուղում երևում են այնքան ժամանակ, քանի դեռ չեք կատարել պատվեր կամ չեք կիսվել դրանցով սոց. հավելվածների միջոցով:
-9. **Բջջային տարբերակ (Mobile)**: Կայքի ներքևի մասում կա նավիգացիոն տող (Bottom Nav) հետևյալ կոճակներով՝ **ԳԼԽԱՎՈՐ**, **ԲԱԺԻՆՆԵՐ**, **ԶԱՄԲՅՈՒՂ** և **ԱԴՄԻՆ**:
+9. **Բջջային տարբերակ (Mobile)**: Կայքի ներքևի մասում կա նավիգացիոն տող (Bottom Nav) հետևյալ կոճակներով՝ **ԳԼԽԱՎՈՐ**, **ԲԱԺԻՆՆԵՐ**, **ԶԱＭԲՅՈՒՂ** և **ԱԴՄԻՆ**:
 
 ԿԱՆՈՆՆԵՐ:
 - Պատասխանեք ՄԻԱՅՆ կայքին և ապրանքներին վերաբերող հարցերին:
@@ -114,14 +175,18 @@ ${JSON.stringify(productData)}
         parts: [{ text: m.content }]
       }));
 
-      contents.push({ role: 'user', parts: [{ text: inputMessage }] });
+      if (!isRetry) {
+        contents.push({ role: 'user', parts: [{ text: inputMessage }] });
+      }
 
       // Add a placeholder message for the assistant that we will stream into
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+      if (!isRetry) {
+        setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+      }
 
-      // Use the correct SDK pattern for Gemini API
+      // Use gemini-flash-latest for better availability
       const result = await ai.models.generateContentStream({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         contents: contents,
         config: {
           systemInstruction: systemInstruction,
@@ -133,11 +198,9 @@ ${JSON.stringify(productData)}
       for await (const chunk of result) {
         const chunkText = chunk.text;
         
-        // Process each chunk with a slight delay to simulate typing
         for (let i = 0; i < chunkText.length; i++) {
           fullResponse += chunkText[i];
           
-          // Update the last message in the list
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMsg = newMessages[newMessages.length - 1];
@@ -147,15 +210,32 @@ ${JSON.stringify(productData)}
             return newMessages;
           });
           
-          // Small delay between characters for a more natural feel
-          // 15ms is a good balance between "too fast" and "too slow"
           await new Promise(resolve => setTimeout(resolve, 15));
         }
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI Error:", error);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Կներեք, տեխնիկական խնդիր առաջացավ: Խնդրում եմ փորձեք մի փոքր ուշ:" }]);
+      
+      // Automatic retry for 429 error
+      if ((error?.message?.includes('429') || error?.status === 429) && !isRetry) {
+        console.log("Rate limit hit, retrying in 3 seconds...");
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return handleSend(true);
+      }
+
+      // Use local fallback if API fails
+      const fallbackResponse = getLocalFallbackResponse(inputMessage, products);
+      
+      setMessages(prev => {
+        const newMessages = [...prev];
+        const lastMsg = newMessages[newMessages.length - 1];
+        if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content === '') {
+          lastMsg.content = fallbackResponse;
+          return newMessages;
+        }
+        return [...prev, { role: 'assistant', content: fallbackResponse }];
+      });
     } finally {
       setIsLoading(false);
     }
