@@ -413,13 +413,22 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<CartItem[]>(() => {
-    const savedCart = localStorage.getItem('cart');
-    return savedCart ? JSON.parse(savedCart) : [];
+    try {
+      const savedCart = localStorage.getItem('cart');
+      const parsed = savedCart ? JSON.parse(savedCart) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      localStorage.removeItem('cart');
+      return [];
+    }
   });
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
   const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
-  const [adminAuth, setAdminAuth] = useState<string | null>(localStorage.getItem('adminPass'));
+  const [adminAuth, setAdminAuth] = useState<string | null>(() => {
+    try { return sessionStorage.getItem('adminToken'); } catch { return null; }
+  });
   const [adminPassInput, setAdminPassInput] = useState('');
+  const [promoInput, setPromoInput] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [adminView, setAdminView] = useState<'products' | 'promo' | 'orders' | 'settings'>('products');
   const [orders, setOrders] = useState<Order[]>([]);
@@ -492,6 +501,13 @@ export default function App() {
     setNotification(message);
     notificationTimer.current = setTimeout(() => setNotification(null), 2000);
   };
+
+  // Cleanup notification timer on unmount
+  useEffect(() => {
+    return () => {
+      if (notificationTimer.current) clearTimeout(notificationTimer.current);
+    };
+  }, []);
 
   const addToCart = (product: Product) => {
     const step = product.min_quantity || 1;
@@ -574,7 +590,9 @@ export default function App() {
       });
       if (response.ok) {
         setAdminAuth(password);
-        localStorage.setItem('adminPass', password);
+        // sessionStorage — tab փակվելիս ավտոմատ մաքրվում է
+        // localStorage-ի փոխարեն (plain text չի մնում browser-ում)
+        try { sessionStorage.setItem('adminToken', password); } catch {}
         showNotification('Մուտքը հաջողվեց');
       } else {
         alert('Սխալ գաղտնաբառ');
@@ -588,32 +606,47 @@ export default function App() {
 
   const handleLogout = () => {
     setAdminAuth(null);
-    localStorage.removeItem('adminPass');
+    try { sessionStorage.removeItem('adminToken'); } catch {}
+    try { localStorage.removeItem('adminPass'); } catch {} // հին version-ից մնացած data-ն մաքրել
   };
 
   const addProduct = async (productData: any) => {
-    const response = await fetch('/api/products', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...productData, password: adminAuth })
-    });
-    if (response.ok) {
-      const newProd = await response.json();
-      setProducts(prev => [...prev, { ...productData, id: newProd.id }]);
-      showNotification('Ապրանքը ավելացվեց');
+    try {
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...productData, password: adminAuth })
+      });
+      if (response.ok) {
+        const newProd = await response.json();
+        setProducts(prev => [...prev, { ...productData, id: newProd.id }]);
+        showNotification('Ապրանքը ավելացվեց');
+      } else {
+        const err = await response.json().catch(() => ({}));
+        alert(err.error || 'Ապրանքի ավելացումը ձախողվեց');
+      }
+    } catch {
+      alert('Սերվերի սխալ: Խնդրում ենք փորձել կրկին');
     }
   };
 
   const updateProduct = async (id: number, productData: any) => {
-    const response = await fetch(`/api/products/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...productData, password: adminAuth })
-    });
-    if (response.ok) {
-      setProducts(prev => prev.map(p => p.id === id ? { ...productData, id } : p));
-      setEditingProduct(null);
-      showNotification('Տվյալները փոփոխվեցին');
+    try {
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...productData, password: adminAuth })
+      });
+      if (response.ok) {
+        setProducts(prev => prev.map(p => p.id === id ? { ...productData, id } : p));
+        setEditingProduct(null);
+        showNotification('Տվյալները փոփոխվեցին');
+      } else {
+        const err = await response.json().catch(() => ({}));
+        alert(err.error || 'Փոփոխությունը ձախողվեց');
+      }
+    } catch {
+      alert('Սերվերի սխալ: Խնդրում ենք փորձել կրկին');
     }
   };
 
@@ -656,7 +689,11 @@ export default function App() {
   };
 
   const fetchOrders = async () => {
-    const response = await fetch(`/api/orders?password=${adminAuth}`);
+    const response = await fetch('/api/orders/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: adminAuth })
+    });
     if (response.ok) {
       const data = await response.json();
       if (Array.isArray(data)) {
@@ -669,6 +706,7 @@ export default function App() {
     if (adminAuth && adminView === 'orders') {
       fetchOrders();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminAuth, adminView]);
 
   const deleteOrder = async (id: number) => {
@@ -752,7 +790,7 @@ export default function App() {
 
       if (response.ok) {
         setAdminAuth(passChangeData.newPass);
-        localStorage.setItem('adminPass', passChangeData.newPass);
+        try { sessionStorage.setItem('adminToken', passChangeData.newPass); } catch {}
         setPassChangeData({ oldPass: '', newPass: '', confirmPass: '' });
         showNotification('Գաղտնաբառը հաջողությամբ փոխվեց');
       } else {
@@ -1016,8 +1054,28 @@ export default function App() {
                   {/* Promo code (outside capture zone) */}
                   <div className="bg-white/5 p-4 sm:p-5 rounded-2xl border border-white/5 space-y-3" data-share-ignore="true">
                     <div className="flex gap-2">
-                      <input id="promo-input" type="text" placeholder="Պրոմոկոդ" className="flex-1 bg-black border border-white/10 rounded-xl px-3 sm:px-4 py-2 outline-none focus:border-blue-500 transition-colors text-sm sm:text-base" />
-                      <button onClick={() => { const input = document.getElementById('promo-input') as HTMLInputElement; const found = promoCodes.find(p => p.code === input.value); if (found) { setAppliedPromo(found); input.value = ''; showNotification('Պրոմոկոդը կիրառվեց'); } else alert('Սխալ պրոմոկոդ'); }} className="px-3 sm:px-4 py-2 bg-blue-600 rounded-xl font-bold text-xs sm:text-sm hover:bg-blue-500 transition-all">ԿԻՐԱՌԵԼ</button>
+                      <input
+                        type="text"
+                        placeholder="Պրոմոկոդ"
+                        value={promoInput}
+                        onChange={(e) => setPromoInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const found = promoCodes.find(p => p.code === promoInput.trim());
+                            if (found) { setAppliedPromo(found); setPromoInput(''); showNotification('Պրոմոկոդը կիրառվեց'); }
+                            else alert('Սխալ պրոմոկոդ');
+                          }
+                        }}
+                        className="flex-1 bg-black border border-white/10 rounded-xl px-3 sm:px-4 py-2 outline-none focus:border-blue-500 transition-colors text-sm sm:text-base"
+                      />
+                      <button
+                        onClick={() => {
+                          const found = promoCodes.find(p => p.code === promoInput.trim());
+                          if (found) { setAppliedPromo(found); setPromoInput(''); showNotification('Պրոմոկոդը կիրառվեց'); }
+                          else alert('Սխալ պրոմոկոդ');
+                        }}
+                        className="px-3 sm:px-4 py-2 bg-blue-600 rounded-xl font-bold text-xs sm:text-sm hover:bg-blue-500 transition-all"
+                      >ԿԻՐԱՌԵԼ</button>
                     </div>
                     {appliedPromo && <div className="flex justify-between text-xs sm:text-sm text-orange-400"><span>Զեղչ ({appliedPromo.discount_percent}%)</span><button onClick={() => setAppliedPromo(null)} className="underline hover:text-orange-300">Ջնջել</button></div>}
                   </div>
@@ -1037,7 +1095,6 @@ export default function App() {
                   <div className="space-y-4">
                     <input type="password" placeholder="Գաղտնաբառ" value={adminPassInput} onChange={(e) => setAdminPassInput(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-blue-500" onKeyDown={(e) => { if (e.key === 'Enter') handleAdminLogin(adminPassInput); }} />
                     <button onClick={() => handleAdminLogin(adminPassInput)} disabled={isLoggingIn} className="w-full py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
-                    <p className="text-center text-white/40 text-xs">Լռելյայն գաղտնաբառը` admin123</p>
                   </div>
                 </div>
               ) : (
