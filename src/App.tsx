@@ -958,17 +958,20 @@ export default function App() {
           )}
 
           {view === 'products' && (
-            <motion.div key="products" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div key="products" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="relative">
               <div className="flex flex-col items-center gap-4 mb-8">
-                <div className="flex items-center w-full gap-4">
-                  <button onClick={() => setView('categories')} className="p-2 hover:bg-white/5 rounded-full"><ChevronLeft size={24} /></button>
+                <div className="flex items-center w-full gap-2 sm:gap-4">
+                  <button onClick={() => setView('categories')} className="p-1.5 sm:p-2 hover:bg-white/5 rounded-full shrink-0">
+                    <ChevronLeft size={16} className="sm:hidden" />
+                    <ChevronLeft size={24} className="hidden sm:block" />
+                  </button>
                   <div className="flex items-center justify-between w-full">
-                    <h2 className="text-2xl sm:text-3xl font-bold uppercase tracking-tight">{category === 'sneakers' ? 'Սպորտային կոշիկներ' : 'Հողաթափեր'}</h2>
+                    <h2 className="text-[15px] sm:text-3xl font-bold uppercase tracking-tight leading-tight">{category === 'sneakers' ? 'Սպորտային կոշիկներ' : 'Հողաթափեր'}</h2>
                   </div>
                 </div>
                 <div className="relative w-full max-w-md">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" size={18} />
-                  <input type="text" placeholder="Փնտրել ապրանք..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3 outline-none focus:border-blue-500 transition-colors" />
+                  <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-white/40" size={13} />
+                  <input type="text" placeholder="Փնտրել ապրանք..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl pl-8 sm:pl-12 pr-4 py-2 sm:py-3 text-[11px] sm:text-base outline-none focus:border-blue-500 transition-colors" />
                 </div>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
@@ -981,6 +984,26 @@ export default function App() {
                   ))
                 }
               </div>
+              {/* Desktop: fixed bottom-right back button | Mobile: hidden (nav back is enough) */}
+              <div className="hidden sm:flex justify-end mt-8">
+                <button
+                  onClick={() => setView('categories')}
+                  className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:bg-white/10"
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}
+                >
+                  <ChevronLeft size={18} />
+                  Վերադառնալ
+                </button>
+              </div>
+              {/* Mobile: small back button bottom-right fixed */}
+              <button
+                onClick={() => setView('categories')}
+                className="sm:hidden fixed bottom-5 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs active:scale-95 shadow-lg"
+                style={{ background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)' }}
+              >
+                <ChevronLeft size={14} />
+                Հետ
+              </button>
             </motion.div>
           )}
 
@@ -1082,30 +1105,64 @@ export default function App() {
 
                   <ShareCartButtons cartSectionRef={cartSectionRef} cart={cart} total={calculateTotal()} onClearCart={() => setCart([])} />
                   <CheckoutForm onSubmit={handleCheckout} isLoading={isCheckingOut} />
+                  {/* Desktop: back button bottom-right */}
+                  <div className="hidden sm:flex justify-end mt-2">
+                    <button
+                      onClick={() => setView(previousView)}
+                      className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:bg-white/10"
+                      style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}
+                    >
+                      <ChevronLeft size={18} />
+                      Վերադառնալ
+                    </button>
+                  </div>
                 </div>
               )}
+              {/* Mobile: fixed bottom-right back button */}
+              <button
+                onClick={() => setView(previousView)}
+                className="sm:hidden fixed bottom-5 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs active:scale-95 shadow-lg"
+                style={{ background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)' }}
+              >
+                <ChevronLeft size={14} />
+                Հետ
+              </button>
             </motion.div>
           )}
 
           {view === 'admin' && (
             <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {!adminAuth ? (
-                <div className="max-w-sm mx-auto py-20">
-                  <h2 className="text-2xl font-bold mb-6 text-center">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
-                  <form onSubmit={(e) => { e.preventDefault(); handleAdminLogin(adminPassInput); }} autoComplete="off" className="space-y-4">
+                <div className="max-w-sm mx-auto py-10 sm:py-20">
+                  <h2 className="text-[13px] sm:text-2xl font-bold mb-5 sm:mb-6 text-center tracking-wide">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
+                  <form onSubmit={(e) => { e.preventDefault(); handleAdminLogin(adminPassInput); }} autoComplete="off" className="space-y-3 sm:space-y-4">
                     <input 
                       type="password" 
                       placeholder="Գաղտնաբառ" 
                       value={adminPassInput} 
                       onChange={(e) => setAdminPassInput(e.target.value)} 
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-blue-500" 
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 sm:px-6 py-2.5 sm:py-4 text-[11px] sm:text-base outline-none focus:border-blue-500 placeholder:text-[11px] sm:placeholder:text-base" 
                       autoComplete="off"
                       autoCorrect="off"
                       autoCapitalize="off"
                       spellCheck="false"
                       data-form-type="other"
                     />
-                    <button type="submit" disabled={isLoggingIn} className="w-full py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      {/* Հետ կոճակ — ձախ կողմ */}
+                      <button
+                        type="button"
+                        onClick={() => setView('home')}
+                        className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-2.5 sm:py-4 rounded-2xl font-bold text-[10px] sm:text-sm transition-all active:scale-95 hover:bg-white/10 shrink-0"
+                        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}
+                      >
+                        <ChevronLeft size={12} className="sm:hidden" />
+                        <ChevronLeft size={16} className="hidden sm:block" />
+                        <span className="hidden sm:inline">Վերադառնալ</span>
+                        <span className="sm:hidden">Հետ</span>
+                      </button>
+                      <button type="submit" disabled={isLoggingIn} className="flex-1 py-2.5 sm:py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-black text-[11px] sm:text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
+                    </div>
                   </form>
                 </div>
               ) : (
