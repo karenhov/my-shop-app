@@ -31,7 +31,17 @@ async function setupDatabase() {
             connectionString: rawUrl,
             ssl: { rejectUnauthorized: false },
             connectionTimeoutMillis: 10000,
+            idleTimeoutMillis: 30000,      // 30 վրկ idle-ից հետո connection-ը փակել
+            max: 5,                         // max connections
+            keepAlive: true,               // TCP keepAlive — Supabase-ի idle disconnect-ից պաշտպանություն
+            keepAliveInitialDelayMillis: 10000,
           });
+
+          // Pool error handler — connection drop-ի դեպքում server-ը չ-crash-անա
+          pool.on('error', (err: any) => {
+            console.error('⚠️ Postgres pool error (will auto-reconnect):', err.message);
+          });
+
           await pool.query("SELECT 1");
           console.log("✅ Connected to Postgres successfully");
         } catch (error: any) {
@@ -56,13 +66,52 @@ async function setupDatabase() {
   }
 }
 
+// Auto-reconnect helper for Postgres
+async function reconnectPostgres() {
+  try {
+    const rawUrl = process.env.DATABASE_URL!;
+    if (!rawUrl) return;
+    console.log("🔄 Attempting Postgres reconnect...");
+    const newPool = new Pool({
+      connectionString: rawUrl,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
+      max: 5,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+    });
+    newPool.on('error', (err: any) => {
+      console.error('⚠️ Postgres pool error:', err.message);
+    });
+    await newPool.query("SELECT 1");
+    pool = newPool;
+    console.log("✅ Postgres reconnected successfully");
+  } catch (err: any) {
+    console.error("❌ Postgres reconnect failed:", err.message);
+  }
+}
+
 // Database helper
 async function query(text: string, params: any[] = []) {
   if (isPostgres && pool) {
     try {
       const result = await pool.query(text, params);
       return { rows: result.rows, rowCount: result.rowCount };
-    } catch (error) {
+    } catch (error: any) {
+      // Connection-ը կորած է — auto-reconnect փորձել
+      const isConnErr = error.code === 'ECONNRESET' || error.code === 'ENOTFOUND' ||
+        error.code === '57P01' || error.message?.includes('terminated') ||
+        error.message?.includes('Connection') || error.message?.includes('connect');
+      if (isConnErr) {
+        console.error("⚠️ Postgres connection lost, reconnecting...");
+        await reconnectPostgres();
+        if (pool) {
+          // Մեկ անգամ retry
+          const retryResult = await pool.query(text, params);
+          return { rows: retryResult.rows, rowCount: retryResult.rowCount };
+        }
+      }
       console.error("Postgres query failed:", error);
       throw error;
     }
@@ -351,7 +400,33 @@ async function startServer() {
   // Orders
   app.post("/api/orders", async (req, res) => {
     try {
-      const { customer_name, customer_phone, customer_address, total_price, items } = req.body;
+      const { customer_name, customer_phone, customer_address, items } = req.body;
+
+      // Validation
+      if (!customer_name || !customer_phone || !customer_address) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "Cart is empty" });
+      }
+
+      // ✅ Server-side price verification — client-ի price-ն անտեսել, DB-ից կարդալ
+      const verifiedItems: { id: number; quantity: number; price: number }[] = [];
+      for (const item of items) {
+        const productResult = await query("SELECT price, is_blocked FROM products WHERE id = $1", [item.id]);
+        if (productResult.rows.length === 0) {
+          return res.status(400).json({ error: `Product ${item.id} not found` });
+        }
+        const product = productResult.rows[0];
+        const isBlocked = isPostgres ? product.is_blocked : Boolean(product.is_blocked);
+        if (isBlocked) {
+          return res.status(400).json({ error: `Product ${item.id} is unavailable` });
+        }
+        verifiedItems.push({ id: item.id, quantity: item.quantity, price: product.price });
+      }
+
+      // Calculate real total server-side
+      const real_total = verifiedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
       
       if (isPostgres) {
         const client = await pool.connect();
@@ -359,10 +434,10 @@ async function startServer() {
           await client.query('BEGIN');
           const orderResult = await client.query(
             "INSERT INTO orders (customer_name, customer_phone, customer_address, total_price) VALUES ($1, $2, $3, $4) RETURNING id",
-            [customer_name, customer_phone, customer_address, total_price]
+            [customer_name, customer_phone, customer_address, real_total]
           );
           const orderId = orderResult.rows[0].id;
-          for (const item of items) {
+          for (const item of verifiedItems) {
             await client.query(
               "INSERT INTO order_items (order_id, product_id, quantity, price_at_time) VALUES ($1, $2, $3, $4)",
               [orderId, item.id, item.quantity, item.price]
@@ -380,9 +455,9 @@ async function startServer() {
         const transaction = sqlite.transaction(() => {
           const orderResult = sqlite.prepare(
             "INSERT INTO orders (customer_name, customer_phone, customer_address, total_price) VALUES (?, ?, ?, ?)"
-          ).run(customer_name, customer_phone, customer_address, total_price);
+          ).run(customer_name, customer_phone, customer_address, real_total);
           const orderId = orderResult.lastInsertRowid;
-          for (const item of items) {
+          for (const item of verifiedItems) {
             sqlite.prepare(
               "INSERT INTO order_items (order_id, product_id, quantity, price_at_time) VALUES (?, ?, ?, ?)"
             ).run(orderId, item.id, item.quantity, item.price);
@@ -397,28 +472,41 @@ async function startServer() {
     }
   });
 
+  // Shared handler for fetching orders (used by both GET legacy and POST secure)
+  const handleFetchOrders = async (password: string | undefined, res: any) => {
+    const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
+    const currentPass = adminPassResult.rows[0];
+    if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+    const ordersResult = await query("SELECT * FROM orders ORDER BY created_at DESC");
+    const orders = ordersResult.rows;
+    const ordersWithItems = await Promise.all(orders.map(async (order: any) => {
+      const itemsResult = await query(`
+        SELECT oi.*, p.name, p.image, p.code 
+        FROM order_items oi 
+        JOIN products p ON oi.product_id = p.id 
+        WHERE oi.order_id = $1
+      `, [order.id]);
+      return { ...order, items: itemsResult.rows };
+    }));
+    res.json(ordersWithItems);
+  };
+
+  // POST /api/orders — fetch orders (password in body, secure)
+  // Note: POST with _method:'GET' is used by the frontend for secure password passing
+  // This route must be BEFORE the generic POST /api/orders handler above won't conflict
+  // because this one checks for _method:'GET' flag
+  app.post("/api/orders/list", async (req, res) => {
+    try {
+      await handleFetchOrders(req.body.password, res);
+    } catch (error) {
+      res.status(500).json({ error: "Database error" });
+    }
+  });
+
+  // GET /api/orders — kept for backward compatibility only
   app.get("/api/orders", async (req, res) => {
     try {
-      const { password } = req.query;
-      const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      const currentPass = adminPassResult.rows[0];
-      
-      if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
-
-      const ordersResult = await query("SELECT * FROM orders ORDER BY created_at DESC");
-      const orders = ordersResult.rows;
-      
-      const ordersWithItems = await Promise.all(orders.map(async (order: any) => {
-        const itemsResult = await query(`
-          SELECT oi.*, p.name, p.image, p.code 
-          FROM order_items oi 
-          JOIN products p ON oi.product_id = p.id 
-          WHERE oi.order_id = $1
-        `, [order.id]);
-        return { ...order, items: itemsResult.rows };
-      }));
-      
-      res.json(ordersWithItems);
+      await handleFetchOrders(req.query.password as string, res);
     } catch (error) {
       res.status(500).json({ error: "Database error" });
     }
@@ -516,9 +604,20 @@ async function startServer() {
     }
   });
 
-  // Health check endpoint (for cron-job.org keep-alive pings)
-  app.get("/health", (req, res) => {
-    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  // Health check + DB keepalive (cron-job.org-ի ping-ը կպահի server-ը և DB-ը արթուն)
+  app.get("/health", async (req, res) => {
+    let dbOk = false;
+    try {
+      await query("SELECT 1");
+      dbOk = true;
+    } catch {
+      // DB ping failed — reconnect will be attempted on next query
+    }
+    res.status(200).json({ 
+      status: "ok", 
+      db: dbOk ? "connected" : "unavailable",
+      timestamp: new Date().toISOString() 
+    });
   });
 
   // Cart image upload — Cloudinary (persistent, works on Render)
