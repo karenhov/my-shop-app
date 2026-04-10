@@ -223,12 +223,11 @@ ${JSON.stringify(productData)}
       // AbortController — stream cancel
       abortRef.current = new AbortController();
       const stream = await ai.models.generateContentStream({
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-flash-latest',
         contents,
         systemInstruction,
         config: { temperature: 0.7, topP: 0.9, topK: 40 }
       }, { signal: abortRef.current.signal });
-
       let fullText = '';
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
