@@ -85,6 +85,8 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
   const [userMessage, setUserMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // AbortController — stream-ի cleanup, memory leak-ից պաշտpanman
+  const abortRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -104,6 +106,11 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
     }
   }, []);
 
+  // Stream cleanup on unmount — memory leak prevention
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
+
   const handleToggle = () => {
     if (!isOpen && showBubble) {
       closeBubble();
@@ -116,19 +123,17 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
     localStorage.setItem('ai_assistant_welcomed', 'true');
   };
 
-  const handleSend = async (isRetry = false) => {
+  const handleSend = async (isRetry = false, retryMessage?: string) => {
     if (!userMessage.trim() && !isRetry) return;
     if (isLoading && !isRetry) return;
 
-    const inputMessage = isRetry ? messages[messages.length - 1].content : userMessage.trim();
+    const inputMessage = isRetry ? (retryMessage ?? '') : userMessage.trim();
+    if (!inputMessage) return;
     
     if (!isRetry) {
       setIsLoading(true);
       setUserMessage('');
       setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
-    } else {
-      // On retry, ensure loading is still true and add empty assistant placeholder if needed
-      setIsLoading(true);
     }
 
     try {
@@ -187,7 +192,7 @@ ${JSON.stringify(productData)}
         setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
       }
 
-      // Use stable model name for better availability
+      // Use gemini-flash-latest for better availability
       const result = await ai.models.generateContentStream({
         model: "gemini-2.0-flash",
         contents: contents,
@@ -199,6 +204,7 @@ ${JSON.stringify(productData)}
 
       let fullResponse = "";
       for await (const chunk of result) {
+        if (abortRef.current?.signal.aborted) break;
         const chunkText = chunk.text ?? "";
         if (!chunkText) continue;
         
@@ -207,9 +213,9 @@ ${JSON.stringify(productData)}
           
           setMessages(prev => {
             const newMessages = [...prev];
-            const lastMsg = newMessages[newMessages.length - 1];
-            if (lastMsg && lastMsg.role === 'assistant') {
-              lastMsg.content = fullResponse;
+            const lastIdx = newMessages.length - 1;
+            if (newMessages[lastIdx]?.role === 'assistant') {
+              newMessages[lastIdx] = { ...newMessages[lastIdx], content: fullResponse };
             }
             return newMessages;
           });
@@ -219,24 +225,24 @@ ${JSON.stringify(productData)}
       }
 
     } catch (error: any) {
+      if (abortRef.current?.signal.aborted) return;
       console.error("AI Error:", error);
       
-      // Automatic retry for 429 error — only once, with longer delay
-      const is429 = error?.message?.includes('429') || error?.status === 429 || error?.message?.includes('Too Many Requests');
-      if (is429 && !isRetry) {
-        console.log("Rate limit hit, retrying in 8 seconds...");
-        await new Promise(resolve => setTimeout(resolve, 8000));
-        return handleSend(true);
+      // Automatic retry for 429 error
+      if ((error?.message?.includes('429') || error?.status === 429) && !isRetry) {
+        console.log("Rate limit hit, retrying in 3 seconds...");
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return handleSend(true, inputMessage);
       }
 
-      // Use local fallback if API fails (including when retry also fails)
+      // Use local fallback if API fails
       const fallbackResponse = getLocalFallbackResponse(inputMessage, products);
       
       setMessages(prev => {
         const newMessages = [...prev];
         const lastMsg = newMessages[newMessages.length - 1];
         if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content === '') {
-          lastMsg.content = fallbackResponse;
+          newMessages[newMessages.length - 1] = { ...lastMsg, content: fallbackResponse };
           return newMessages;
         }
         return [...prev, { role: 'assistant', content: fallbackResponse }];
