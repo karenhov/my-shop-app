@@ -604,6 +604,85 @@ async function startServer() {
     }
   });
 
+  // ── AI Chat Proxy — Gemini API key client-ին չբացահայտել ──
+  // Rate limit-ի դեպքում server-side retry + cache
+  const aiResponseCache = new Map<string, { response: string; ts: number }>();
+  const AI_CACHE_TTL = 60_000; // 1 րոպե cache
+
+  app.post("/api/ai-chat", async (req, res) => {
+    try {
+      const { messages, systemInstruction } = req.body;
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ error: "No messages provided" });
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: "AI service not configured" });
+      }
+
+      // Simple cache key from last user message
+      const lastMsg = messages[messages.length - 1]?.parts?.[0]?.text || "";
+      const cacheKey = lastMsg.slice(0, 100);
+      const cached = aiResponseCache.get(cacheKey);
+      if (cached && Date.now() - cached.ts < AI_CACHE_TTL) {
+        return res.json({ text: cached.response });
+      }
+
+      // Retry logic for 429
+      let lastError: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          await new Promise(r => setTimeout(r, attempt * 2000));
+        }
+        try {
+          const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                system_instruction: systemInstruction
+                  ? { parts: [{ text: systemInstruction }] }
+                  : undefined,
+                contents: messages,
+                generationConfig: { temperature: 0.7, maxOutputTokens: 1000 },
+              }),
+            }
+          );
+
+          if (geminiRes.status === 429) {
+            lastError = { status: 429, message: "Rate limit" };
+            continue; // retry
+          }
+
+          if (!geminiRes.ok) {
+            const errText = await geminiRes.text();
+            return res.status(502).json({ error: "AI service error", detail: errText });
+          }
+
+          const data = await geminiRes.json() as any;
+          const text: string =
+            data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+          aiResponseCache.set(cacheKey, { response: text, ts: Date.now() });
+          return res.json({ text });
+        } catch (fetchErr: any) {
+          lastError = fetchErr;
+        }
+      }
+
+      // All retries exhausted
+      if (lastError?.status === 429) {
+        return res.status(429).json({ error: "rate_limit" });
+      }
+      return res.status(502).json({ error: "AI service unavailable" });
+    } catch (err: any) {
+      console.error("AI chat error:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   // Health check + DB keepalive (cron-job.org-ի ping-ը կպահի server-ը և DB-ը արթուն)
   app.get("/health", async (req, res) => {
     let dbOk = false;
