@@ -5,72 +5,104 @@ import { MessagesSquare, X, Send, Bot, User, Loader2, Sparkles } from 'lucide-re
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 
-// Initialize Gemini API
-// Moved inside handleSend for robustness
-
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
-// Local FAQ Database for fallback
+// ========== ENHANCED LOCAL FAQ DATABASE ==========
+// Այս բազան օգտագործվում է երբ API-ն հասանելի չէ կամ լիմիտը լրացել է
 const FAQ_DATA = [
   {
-    keywords: ['զամբյուղ', 'basket', 'ավելացնել', 'ջնջել'],
-    answer: "🛒 **Զամբյուղի** բաժինը գտնվում է կայքի վերևի աջ անկյունում: Ապրանք ավելացնելու համար սեղմեք **'Ուղղարկել զամբյուղ'** կոճակը: Այնտեղ կարող եք փոխել քանակը կամ ջնջել ապրանքը:"
+    keywords: ['բարև', 'ողջույն', 'hi', 'hello', 'barev'],
+    answer: "👋 Ողջույն! Ես **EdgSport** խանութի AI օգնականն եմ։ Ինչո՞վ կարող եմ օգնել ձեզ այսօր։"
   },
   {
-    keywords: ['պատվեր', 'order', 'հաստատել', 'գնել'],
-    answer: "📦 **Պատվերը** ձևակերպելու համար մտեք զամբյուղ, լրացրեք ձեր տվյալները և սեղմեք **'ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐԸ'**: Դրանից հետո կարող եք կապնվել մեզ հետ Viber-ով կամ Telegram-ով:"
+    keywords: ['օգնություն', 'help', 'ինչպե՞ս', 'ինչպես'],
+    answer: "ℹ️ Ես կարող եմ օգնել ձեզ.\n\n🛒 **Զամբյուղի** և պատվերի հետ\n📦 **Ապրանքների** մասին տեղեկություններ\n🔍 **Կայքում նավիգացիա**\n💬 **Կապի** միջոցներ\n\nՍեղմեք վերևի մենյուի **«ԲԱԺԻՆՆԵՐ»** կոճակը՝ տեսականին դիտելու համար։"
   },
   {
-    keywords: ['կապ', 'ադմին', 'հեռախոս', 'viber', 'whatsapp', 'telegram'],
-    answer: "📞 Մեզ հետ կարող եք կապնվել **Viber**, **WhatsApp** կամ **Telegram** հավելվածների միջոցով: Կոճակները կհայտնվեն զամբյուղում ապրանք ավելացնելուց հետո, կամ կարող եք օգտվել ներքևի նավիգացիոն տողի **'ԱԴՄԻՆ'** բաժնից:"
+    keywords: ['զամբյուղ', 'basket', 'cart', 'ավելացնել', 'ջնջել', 'քանակ'],
+    answer: "🛒 **Զամբյուղի** օգտագործում.\n\n1️⃣ Ապրանք ընտրելու համար սեղմեք **«ՈՒՂՂԱՐԿԵԼ ԶԱՄԲՅՈՒՂ»** կոճակը\n2️⃣ Զամբյուղը գտնվում է վերևի աջ անկյունում 🛒\n3️⃣ Այնտեղ կարող եք՝\n   • Փոխել քանակները **+ / -** կոճակներով\n   • Ջնջել ապրանքները 🗑️\n   • Դիտել ընդհանուր գումարը"
   },
   {
-    keywords: ['նկար', 'մեծացնել', 'դիտել'],
-    answer: "🖼️ Նկարը մեծ դիտելու համար **սեղմած պահեք նկարի վրա**: Եթե նկարը չի բացվում, փորձեք թարմացնել էջը:"
+    keywords: ['պատվեր', 'order', 'հաստատել', 'գնել', 'ձևակերպել'],
+    answer: "📦 **Պատվերի** ձևակերպում.\n\n1️⃣ Մտեք **ԶԱՄԲՅՈՒՂ** բաժին\n2️⃣ Լրացրեք ձեր տվյալները՝\n   • Անուն Ազգանուն\n   • Հեռախոսահամար\n   • Հասցե\n3️⃣ Սեղմեք **«ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐԸ»**\n4️⃣ Կապնվեք մեզ հետ **Viber/Telegram** միջոցով"
   },
   {
-    keywords: ['զեղչ', 'պրոմոկոդ', 'promo'],
-    answer: "🎫 **Պրոմոկոդը** նախատեսված է զեղչերի համար: Այն կարող եք ստանալ մեր ադմինիստրատորից:"
+    keywords: ['կապ', 'ադմին', 'հեռախոս', 'viber', 'whatsapp', 'telegram', 'կապվել'],
+    answer: "📞 **Կապի** միջոցներ.\n\n💬 Մեզ հետ կարող եք կապնվել՝\n• **Viber**\n• **WhatsApp**\n• **Telegram**\n\nԿոճակները հայտնվում են զամբյուղում՝ երբ այնտեղ կա առնվազն **1 ապրանք**։ Կամ օգտվեք **«ԱԴՄԻՆ»** բաժնից։"
   },
   {
-    keywords: ['բարև', 'ողջույն', 'hi', 'hello'],
-    answer: "Ողջույն! Ես EdgSport-ի AI օգնականն եմ: Ինչո՞վ կարող եմ օգնել ձեզ:"
+    keywords: ['կիսվել', 'share', 'ուղարկել'],
+    answer: "📤 **Զամբյուղով կիսվելը**.\n\n🎯 **Viber**, **WhatsApp** կամ **Telegram** կոճակները հայտնվում են զամբյուղում՝ երբ այնտեղ կա **առնվազն 1 ապրանք**։\n\n✅ Սեղմեք մեկին՝ ձեր ընտրած ապրանքների նկարը և տեղեկությունները ուղարկելու համար։"
+  },
+  {
+    keywords: ['նկար', 'մեծացնել', 'դիտել', 'տեսնել', 'photo'],
+    answer: "🖼️ **Նկարների** դիտում.\n\n📱 Նկարը մեծ դիտելու համար՝\n• **Սեղմած պահեք** նկարի վրա\n• Հետո ընտրեք մեծացնելու տարբերակը\n\n⚠️ Եթե նկարները չեն բացվում՝ թարմացրեք էջը (F5)"
+  },
+  {
+    keywords: ['զեղչ', 'պրոմոկոդ', 'promo', 'discount', 'արժեղչում'],
+    answer: "🎫 **Պրոմոկոդի** օգտագործում.\n\n1️⃣ Պրոմոկոդը ստանալ ադմինիստրատորից\n2️⃣ Մտեք **ԶԱՄԲՅՈՒՂ** բաժին\n3️⃣ Գրեք պրոմոկոդը համապատասխան դաշտում\n4️⃣ Սեղմեք **«ԿԻՐԱՌԵԼ»**\n\n✨ Զեղչը ավտոմատ հաշվարկվելու է։"
+  },
+  {
+    keywords: ['ապրանք', 'տեսականի', 'product', 'ինչ կա', 'կոշիկ', 'հողաթափ'],
+    answer: "👟 **Մեր տեսականին**.\n\n📂 Ունենք երկու հիմնական բաժին՝\n\n1️⃣ **ՍՊՈՐՏԱՅԻՆ ԿՈՇԻԿՆԵՐ**\n   • Բարձրորակ սպորտային մոդելներ\n   • Մեծածախ գներ\n\n2️⃣ **ՀՈՂԱԹԱՓԵՐ**\n   • Ամենօրյա և աշխատանքային\n   • Լայն տեսականի\n\n🔍 Դիտելու համար՝ սեղմեք **«ԴԻՏԵԼ ՏԵՍԱԿԱՆԻՆ»** կոճակը գլխավոր էջում։"
+  },
+  {
+    keywords: ['գին', 'price', 'արժե', 'փող', 'դրամ'],
+    answer: "💰 **Գների** մասին.\n\n✅ Յուրաքանչյուր ապրանքի գինը նշված է դրամով (֏)\n✅ Ունենք **մեծածախ** գներ\n✅ Պրոմոկոդներով լրացուցիչ զեղչեր\n\n📊 Ընդհանուր գումարը ավտոմատ հաշվարկվում է զամբյուղում։"
+  },
+  {
+    keywords: ['փնտրել', 'search', 'որոնում', 'գտնել', 'կոդ'],
+    answer: "🔍 **Որոնում**.\n\n1️⃣ Մտեք ցանկացած բաժին (Կոշիկներ/Հողաթափեր)\n2️⃣ Օգտվեք վերևի **որոնման դաշտից** 🔎\n3️⃣ Կարող եք փնտրել՝\n   • Ապրանքի անունով\n   • Կոդով\n\n⚡ Արդյունքները կցուցադրվեն անմիջապես։"
+  },
+  {
+    keywords: ['բջջային', 'mobile', 'հեռախոս', 'նավիգացիա', 'մենյու'],
+    answer: "📱 **Բջջային տարբերակ**.\n\n⬇️ Ներքևի նավիգացիոն տողում կան՝\n\n🏠 **ԳԼԽԱՎՈՐ** — Հիմնական էջ\n📂 **ԲԱԺԻՆՆԵՐ** — Տեսականի\n🛒 **ԶԱՄԲՅՈՒՂ** — Ձեր պատվերները\n👤 **ԱԴՄԻՆ** — Մուտք (միայն ադմինի համար)\n\nՕգտագործեք այս կոճակները՝ հեշտ նավիգացիայի համար։"
+  },
+  {
+    keywords: ['առաքում', 'delivery', 'ուր', 'ժամանակ', 'երբ'],
+    answer: "🚚 **Առաքման** մասին.\n\n✅ Առաքում ամբողջ **Հայաստանով**\n✅ Առաքման ժամկետները և ծախսերը կախված են տարածքից\n\n📞 Մանրամասների համար կապնվեք ադմինիստրատորի հետ **Viber/Telegram**-ով զամբյուղը կիսելուց հետո։"
+  },
+  {
+    keywords: ['վճարում', 'payment', 'ինչպես վճարել', 'քարտ'],
+    answer: "💳 **Վճարում**.\n\n🎯 Վճարման եղանակները կքննարկվեն պատվեր հաստատելուց հետո։\n\n📞 Պատվերը հաստատեք և կապնվեք ադմինիստրատորի հետ՝\n• **Viber**\n• **WhatsApp** \n• **Telegram**\n\nԱնհրաժեշտ տեղեկությունները կտրամադրվեն։"
+  },
+  {
+    keywords: ['սխալ', 'error', 'չի աշխատում', 'խնդիր', 'bug'],
+    answer: "⚠️ **Տեխնիկական խնդիր**.\n\n🔧 Եթե կայքում խնդիր եք հայտնաբերել՝\n\n1️⃣ Փորձեք թարմացնել էջը (F5)\n2️⃣ Մաքրեք browser-ի cache-ը\n3️⃣ Փորձեք այլ browser-ով\n\n📞 Եթե խնդիրը շարունակվում է՝ կապնվեք ադմինիստրատորի հետ։"
   }
 ];
 
+// Ավելի խելացի LOCAL search функция
 const getLocalFallbackResponse = (query: string, products: any[]) => {
-  const lowerQuery = query.toLowerCase();
+  const lowerQuery = query.toLowerCase().trim();
   
-  // Check FAQ first
+  // Առաջին՝ ստուգել FAQ-ում
   for (const item of FAQ_DATA) {
-    if (item.keywords.some(key => lowerQuery.includes(key))) {
+    if (item.keywords.some(key => lowerQuery.includes(key.toLowerCase()))) {
       return item.answer;
     }
   }
 
-  // Check if asking about products in general
-  if (lowerQuery.includes('ապրանք') || lowerQuery.includes('տեսականի') || lowerQuery.includes('ինչ կա')) {
-    return "Մեր տեսականին կարող եք տեսնել գլխավոր էջի **'Դիտել տեսականին'** կոճակը սեղմելով: Ունենք սպորտային կոշիկներ և հողաթափեր:";
-  }
-
-  // Check for specific product names or codes
+  // Երկրորդ՝ ստուգել ապրանքների անուններ և կոդեր
   const foundProducts = products.filter(p => 
     lowerQuery.includes(p.code.toLowerCase()) || 
     lowerQuery.includes(p.name.toLowerCase())
   ).slice(0, 3);
 
   if (foundProducts.length > 0) {
-    let resp = "Ահա ձեր փնտրած ապրանքները:\n\n";
+    let resp = "🔍 **Գտնված ապրանքներ**\n\n";
     foundProducts.forEach(p => {
-      resp += `🔹 **${p.name}**\n💰 Գին: ${p.price} դրամ\n🔢 Կոդ: ${p.code}\n\n`;
+      resp += `🔹 **${p.name}**\n💰 Գին՝ **${p.price.toLocaleString()} ֏**\n🔢 Կոդ՝ **${p.code}**\n${p.category === 'sneakers' ? '👟 Սպորտային կոշիկ' : '🥿 Հողաթափ'}\n\n`;
     });
+    resp += "💡 Ապրանքները ավելացնելու համար մտեք համապատասխան բաժին և սեղմեք **«ՈՒՂՂԱՐԿԵԼ ԶԱՄԲՅՈՒՂ»**։";
     return resp;
   }
 
-  return "Կներեք, ես չկարողացա գտնել կոնկրետ պատասխան ձեր հարցին մեր պահուստային բազայում: Խնդրում եմ փորձեք մի փոքր ուշ, երբ AI համակարգը նորից հասանելի լինի:";
+  // Եթե ոչինչ չգտավ
+  return "🤔 Ներողություն, ես չկարողացա գտնել կոնկրետ պատասխան ձեր հարցին։\n\n💡 **Հնարավոր է...**\n• AI համակարգը ժամանակավորապես անհասանելի է\n• Լիմիտը սպառվել է\n\n📞 Խնդրում եմ փորձեք մի փոքր ուշ կամ կապնվեք ադմինիստրատորի հետ։";
 };
 
 export function AIAssistant({ products = [] }: { products?: any[] }) {
@@ -79,13 +111,13 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'assistant', 
-      content: 'Ողջույն! Ես ձեր AI օգնականն եմ: Ինչպե՞ս կարող եմ օգնել ձեզ այսօր:' 
+      content: '👋 Ողջույն! Ես ձեր AI օգնականն եմ։ Ինչպե՞ս կարող եմ օգնել ձեզ այսօր։' 
     }
   ]);
   const [userMessage, setUserMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [apiAvailable, setApiAvailable] = useState(true); // API հասանելիության ստատուս
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // AbortController — stream-ի cleanup, memory leak-ից պաշտpanman
   const abortRef = useRef<AbortController | null>(null);
 
   const scrollToBottom = () => {
@@ -106,7 +138,6 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
     }
   }, []);
 
-  // Stream cleanup on unmount — memory leak prevention
   useEffect(() => {
     return () => { abortRef.current?.abort(); };
   }, []);
@@ -136,11 +167,15 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
     }
 
+    // ========== ՓՈՐՁ API-ի հետ աշխատել ==========
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("API Key is missing. Please check your environment variables in Render (VITE_GEMINI_API_KEY).");
+      
+      // Եթե API key չկա կամ API-ն նախկինում հասանելի չէր
+      if (!apiKey || !apiAvailable) {
+        throw new Error("API unavailable");
       }
+
       const ai = new GoogleGenAI({ apiKey });
 
       const productData = products.slice(0, 10).map(p => ({
@@ -183,94 +218,81 @@ ${JSON.stringify(productData)}
         parts: [{ text: m.content }]
       }));
 
-      if (!isRetry) {
-        contents.push({ role: 'user', parts: [{ text: inputMessage }] });
+      contents.push({ role: 'user', parts: [{ text: inputMessage }] });
+
+      // AbortController — stream cancel
+      abortRef.current = new AbortController();
+      const stream = await ai.models.generateContentStream({
+        model: 'gemini-2.0-flash-exp',
+        contents,
+        systemInstruction,
+        config: { temperature: 0.7, topP: 0.9, topK: 40 }
+      }, { signal: abortRef.current.signal });
+
+      let fullText = '';
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+      for await (const chunk of stream) {
+        const text = chunk.text?.() ?? '';
+        fullText += text;
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'assistant', content: fullText };
+          return updated;
+        });
       }
 
-      // Add a placeholder message for the assistant that we will stream into
-      if (!isRetry) {
-        setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-      }
-
-      // Use gemini-flash-latest for better availability
-      const result = await ai.models.generateContentStream({
-        model: "gemini-2.0-flash",
-        contents: contents,
-        config: {
-          systemInstruction: systemInstruction,
-          temperature: 0.7,
-        },
-      });
-
-      let fullResponse = "";
-      for await (const chunk of result) {
-        if (abortRef.current?.signal.aborted) break;
-        const chunkText = chunk.text ?? "";
-        if (!chunkText) continue;
-        
-        for (let i = 0; i < chunkText.length; i++) {
-          fullResponse += chunkText[i];
-          
-          setMessages(prev => {
-            const newMessages = [...prev];
-            const lastIdx = newMessages.length - 1;
-            if (newMessages[lastIdx]?.role === 'assistant') {
-              newMessages[lastIdx] = { ...newMessages[lastIdx], content: fullResponse };
-            }
-            return newMessages;
-          });
-          
-          await new Promise(resolve => setTimeout(resolve, 15));
-        }
-      }
+      // Եթե API-ն աշխատեց՝ նշանակել որ հասանելի է
+      setApiAvailable(true);
 
     } catch (error: any) {
-      if (abortRef.current?.signal.aborted) return;
-      console.error("AI Error:", error);
+      // ========== ERROR HANDLING - ՍԽԱԼՆԵՐԻ ՄՇԱԿՈՒՄ ==========
       
-      // Automatic retry for 429 error
-      if ((error?.message?.includes('429') || error?.status === 429) && !isRetry) {
-        console.log("Rate limit hit, retrying in 3 seconds...");
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        return handleSend(true, inputMessage);
+      // Մաքրել նախորդ անկատար հաղորդագրությունը
+      setMessages(prev => prev.filter(m => m.content !== ''));
+      
+      // ԿԱՐԵՎՈՐ: Console-ում սխալ ՉԻ ՑՈՒՑԱԴՐՎԵԼՈՒ
+      // error-ը լոգավորվում է միայն development-ում, production-ում ոչ
+      if (import.meta.env.DEV) {
+        console.warn('AI Assistant: Falling back to local FAQ', error?.message);
       }
-
-      // Use local fallback if API fails
-      const fallbackResponse = getLocalFallbackResponse(inputMessage, products);
       
-      setMessages(prev => {
-        const newMessages = [...prev];
-        const lastMsg = newMessages[newMessages.length - 1];
-        if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content === '') {
-          newMessages[newMessages.length - 1] = { ...lastMsg, content: fallbackResponse };
-          return newMessages;
-        }
-        return [...prev, { role: 'assistant', content: fallbackResponse }];
-      });
+      // Նշանակել որ API-ն անհասանելի է
+      setApiAvailable(false);
+      
+      // Օգտագործել LOCAL FAQ բազան
+      const localResponse = getLocalFallbackResponse(inputMessage, products);
+      
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: localResponse
+      }]);
     } finally {
       setIsLoading(false);
+      abortRef.current = null;
     }
   };
 
   return (
     <>
-      <div className="ai-assistant-container relative inline-block z-[60]">
+      <div className="relative">
         <AnimatePresence>
-          {showBubble && !isOpen && (
+          {showBubble && (
             <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.8 }}
-              className="absolute top-full right-0 mt-3 bg-white text-black p-3 rounded-2xl rounded-tr-none shadow-2xl border border-gray-200 z-[100] w-[200px] sm:w-[250px] pointer-events-auto"
+              initial={{ opacity: 0, scale: 0.8, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 10 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
+              className="absolute -bottom-16 right-0 bg-white text-gray-900 px-3 py-2 rounded-2xl shadow-2xl border border-gray-200 max-w-[200px] z-[100]"
             >
-              <button 
+              <button
                 onClick={(e) => { e.stopPropagation(); closeBubble(); }}
                 className="absolute -top-2 -left-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors shadow-lg z-[110]"
               >
                 <X size={12} />
               </button>
               <p className="text-[11px] sm:text-xs font-bold leading-tight text-gray-800">
-                Ողջույն! Ես ձեր AI օգնականն եմ: Կարո՞ղ եմ օգնել ձեզ:
+                Ողջույն! Ես ձեր AI օգնականն եմ։ Կարո՞ղ եմ օգնել ձեզ։
               </p>
               <div className="absolute -top-2 right-4 w-4 h-4 bg-white rotate-45 border-l border-t border-gray-200" />
             </motion.div>
@@ -296,7 +318,6 @@ ${JSON.stringify(productData)}
         <AnimatePresence>
           {isOpen && (
             <div className="fixed inset-0 z-[10000] flex flex-col sm:items-end sm:justify-start sm:p-4 sm:pt-20 pointer-events-none">
-              {/* Backdrop */}
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -312,7 +333,6 @@ ${JSON.stringify(productData)}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
                 className="relative w-full h-full sm:w-[400px] sm:h-[calc(100vh-120px)] sm:max-h-[700px] bg-[#09090b] border-none sm:border sm:border-white/10 rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto"
               >
-              {/* Header */}
               <div className="p-4 bg-gradient-to-r from-[#3b82f6] to-[#f97316] flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2 text-white">
                   <div className="p-1.5 bg-white/20 rounded-lg">
@@ -320,7 +340,9 @@ ${JSON.stringify(productData)}
                   </div>
                   <div>
                     <h3 className="font-bold text-sm">AI Օգնական</h3>
-                    <p className="text-[10px] opacity-80">Միշտ պատրաստ օգնելու</p>
+                    <p className="text-[10px] opacity-80">
+                      {apiAvailable ? 'Միշտ պատրաստ օգնելու' : '💾 Offline ռեժիմ'}
+                    </p>
                   </div>
                 </div>
                 <button 
@@ -331,7 +353,6 @@ ${JSON.stringify(productData)}
                 </button>
               </div>
 
-              {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar min-h-0">
                   {messages.map((msg, idx) => (
                     <motion.div 
@@ -373,7 +394,6 @@ ${JSON.stringify(productData)}
                   <div ref={messagesEndRef} className="h-2" />
                 </div>
 
-              {/* Input */}
               <div className="p-4 border-t border-white/10 bg-black/20 shrink-0">
                 <form 
                   onSubmit={(e) => { e.preventDefault(); handleSend(); }}
