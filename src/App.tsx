@@ -1092,10 +1092,21 @@ export default function App() {
               {!adminAuth ? (
                 <div className="max-w-sm mx-auto py-20">
                   <h2 className="text-2xl font-bold mb-6 text-center">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
-                  <div className="space-y-4">
-                    <input type="password" placeholder="Գաղտնաբառ" value={adminPassInput} onChange={(e) => setAdminPassInput(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-blue-500" onKeyDown={(e) => { if (e.key === 'Enter') handleAdminLogin(adminPassInput); }} />
-                    <button onClick={() => handleAdminLogin(adminPassInput)} disabled={isLoggingIn} className="w-full py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
-                  </div>
+                  <form onSubmit={(e) => { e.preventDefault(); handleAdminLogin(adminPassInput); }} autoComplete="off" className="space-y-4">
+                    <input 
+                      type="password" 
+                      placeholder="Գաղտնաբառ" 
+                      value={adminPassInput} 
+                      onChange={(e) => setAdminPassInput(e.target.value)} 
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-blue-500" 
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
+                      data-form-type="other"
+                    />
+                    <button type="submit" disabled={isLoggingIn} className="w-full py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
+                  </form>
                 </div>
               ) : (
                 <div className="space-y-8">
@@ -1272,7 +1283,7 @@ export default function App() {
 
                       <div className="bg-white/5 p-6 rounded-3xl border border-white/5 space-y-4">
                         <h3 className="text-lg font-bold flex items-center gap-2"><User size={20} className="text-orange-400" /> ԳԱՂՏՆԱԲԱՌԻ ՓՈՓՈԽՈՒԹՅՈՒՆ</h3>
-                        <form onSubmit={handleChangePassword} className="space-y-4">
+                        <form onSubmit={handleChangePassword} autoComplete="off" className="space-y-4">
                           <div>
                             <label className="block text-xs text-white/40 mb-1 ml-2">ՀԻՆ ԳԱՂՏՆԱԲԱՌ</label>
                             <input 
@@ -1281,6 +1292,11 @@ export default function App() {
                               value={passChangeData.oldPass}
                               onChange={(e) => setPassChangeData({ ...passChangeData, oldPass: e.target.value })}
                               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500" 
+                              autoComplete="off"
+                              autoCorrect="off"
+                              autoCapitalize="off"
+                              spellCheck="false"
+                              data-form-type="other"
                             />
                           </div>
                           <div>
@@ -1291,6 +1307,11 @@ export default function App() {
                               value={passChangeData.newPass}
                               onChange={(e) => setPassChangeData({ ...passChangeData, newPass: e.target.value })}
                               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500" 
+                              autoComplete="new-password"
+                              autoCorrect="off"
+                              autoCapitalize="off"
+                              spellCheck="false"
+                              data-form-type="other"
                             />
                           </div>
                           <div>
@@ -1301,6 +1322,11 @@ export default function App() {
                               value={passChangeData.confirmPass}
                               onChange={(e) => setPassChangeData({ ...passChangeData, confirmPass: e.target.value })}
                               className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-blue-500" 
+                              autoComplete="new-password"
+                              autoCorrect="off"
+                              autoCapitalize="off"
+                              spellCheck="false"
+                              data-form-type="other"
                             />
                           </div>
                           <button 
