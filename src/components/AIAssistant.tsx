@@ -373,7 +373,7 @@ ${JSON.stringify(productData)}
       // AbortController — stream cancel
       abortRef.current = new AbortController();
       const stream = await ai.models.generateContentStream({
-        model: 'gemini-flash-latest',
+        model: 'gemini-2.5-flash',
         contents,
         systemInstruction,
         config: { temperature: 0.7, topP: 0.9, topK: 40 }
