@@ -30,9 +30,9 @@ async function setupDatabase() {
           pool = new Pool({
             connectionString: rawUrl,
             ssl: { rejectUnauthorized: false },
-            connectionTimeoutMillis: 10000,
-            idleTimeoutMillis: 30000,      // 30 վրկ idle-ից հետո connection-ը փակել
-            max: 5,                         // max connections
+            connectionTimeoutMillis: 5000,
+            idleTimeoutMillis: 60000,      // 1 րոպե — Supabase free tier-ի disconnect-ից պաշտպանություն
+            max: 3,                         // max connections (Supabase free limit-ի համար)
             keepAlive: true,               // TCP keepAlive — Supabase-ի idle disconnect-ից պաշտպանություն
             keepAliveInitialDelayMillis: 10000,
           });
@@ -75,9 +75,9 @@ async function reconnectPostgres() {
     const newPool = new Pool({
       connectionString: rawUrl,
       ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 30000,
-      max: 5,
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 60000,
+      max: 3,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
     });
@@ -608,10 +608,14 @@ async function startServer() {
   app.get("/health", async (req, res) => {
     let dbOk = false;
     try {
-      await query("SELECT 1");
+      // 3 վրկ timeout — Render-ի 30 վրկ limit-ից շատ կարճ, crash-ը կանխելու համար
+      await Promise.race([
+        query("SELECT 1"),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("DB timeout")), 3000))
+      ]);
       dbOk = true;
     } catch {
-      // DB ping failed — reconnect will be attempted on next query
+      // DB timeout կամ error — server-ը կենդանի է, DB-ն ոչ
     }
     res.status(200).json({ 
       status: "ok", 
