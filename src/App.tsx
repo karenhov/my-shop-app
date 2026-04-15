@@ -24,6 +24,67 @@ import { Product, CartItem, PromoCode, Order } from './types';
 import { toPng } from 'html-to-image';
 import { AIAssistant } from './components/AIAssistant';
 
+// ---- SmartImage: retry on error, skeleton placeholder, cache-busting ----
+function SmartImage({
+  src,
+  alt = '',
+  className = '',
+  referrerPolicy,
+  crossOrigin,
+  style,
+}: {
+  src: string;
+  alt?: string;
+  className?: string;
+  referrerPolicy?: React.ImgHTMLAttributes<HTMLImageElement>['referrerPolicy'];
+  crossOrigin?: React.ImgHTMLAttributes<HTMLImageElement>['crossOrigin'];
+  style?: React.CSSProperties;
+}) {
+  const [loaded, setLoaded] = React.useState(false);
+  const [errored, setErrored] = React.useState(false);
+  const retryRef = React.useRef(false);
+
+  const handleError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (!retryRef.current) {
+      retryRef.current = true;
+      // cache-bust — ստիպել browser-ին նորից բեռնել սերվերից
+      const base = src.split('?')[0];
+      e.currentTarget.src = `${base}?_r=${Date.now()}`;
+    } else {
+      setErrored(true);
+    }
+  };
+
+  return (
+    <div className={`relative ${className}`} style={style}>
+      {/* Skeleton — երեւում է մինչ բեռնվելը */}
+      {!loaded && !errored && (
+        <div className="absolute inset-0 bg-zinc-800 animate-pulse rounded-inherit" />
+      )}
+      {/* Error placeholder */}
+      {errored && (
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 rounded-inherit">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-600">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 9 6 6M15 9l-6 6"/>
+          </svg>
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        referrerPolicy={referrerPolicy}
+        crossOrigin={crossOrigin}
+        onLoad={() => setLoaded(true)}
+        onError={handleError}
+        className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'} ${className}`}
+        style={style}
+      />
+    </div>
+  );
+}
+
 // ---- Viber SVG Icon (official phone + signal waves + speech bubble) ----
 function ViberIcon({ size = 24 }: { size?: number }) {
   return (
@@ -329,7 +390,7 @@ function CategoryActionCard({ title, desc, color, onClick }: { title: string, de
 function CategoryCard({ title, image, onClick }: { title: string, image: string, onClick: () => void }) {
   return (
     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={onClick} className="relative h-64 sm:h-96 rounded-[2rem] sm:rounded-[3rem] overflow-hidden group shadow-2xl">
-      <img src={image} alt={title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
+      <SmartImage src={image} alt={title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
       <div className="absolute bottom-6 left-6 sm:bottom-8 sm:left-8 text-left"><h3 className="text-2xl sm:text-3xl font-black tracking-tighter leading-none">{title}</h3><p className="text-blue-400 text-xs sm:text-sm font-bold mt-2 flex items-center gap-2">ԴԻՏԵԼ <Plus size={16} /></p></div>
     </motion.button>
@@ -340,7 +401,7 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="bg-gradient-to-b from-white/10 to-white/[0.02] rounded-2xl sm:rounded-3xl border border-white/10 overflow-hidden flex flex-col hover:border-blue-500/30 transition-colors group">
       <div className="aspect-square overflow-hidden relative bg-zinc-900">
-        <img src={product.image} alt={product.name} loading="eager" fetchPriority="high" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
+        <SmartImage src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
         <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/60 backdrop-blur-md px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-bold tracking-widest uppercase border border-white/10">{product.code}</div>
       </div>
       <div className="p-3 sm:p-5 flex-1 flex flex-col">
@@ -474,13 +535,6 @@ export default function App() {
       .then(data => {
         if (Array.isArray(data)) {
           setProducts(data);
-          // Preload all product images immediately
-          data.forEach((product: Product) => {
-            if (product.image) {
-              const img = new Image();
-              img.src = product.image;
-            }
-          });
         }
       })
       .catch(err => console.error("Failed to fetch products:", err));
@@ -1046,7 +1100,7 @@ export default function App() {
                     <h2 className="text-xl sm:text-2xl font-bold px-1">ԶԱՄԲՅՈՒՂ</h2>
                     {cart.map(item => (
                       <div key={item.id} className="flex gap-3 sm:gap-4 bg-white/5 p-3 sm:p-4 rounded-2xl border border-white/5">
-                        <img src={optimizeImageUrl(item.image, 200)} alt={item.name} className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl" referrerPolicy="no-referrer" crossOrigin="anonymous" />
+                        <SmartImage src={optimizeImageUrl(item.image, 200)} alt={item.name} className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl shrink-0" referrerPolicy="no-referrer" crossOrigin="anonymous" />
                         <div className="flex-1 min-w-0">
                           <h3 className="font-bold text-sm sm:text-base truncate">{item.name}</h3>
                           <p className="text-[10px] sm:text-sm text-white/40">Կոդ: {item.code}</p>
@@ -1259,7 +1313,7 @@ export default function App() {
                               />
 
                               <div className="relative shrink-0">
-                                <img
+                                <SmartImage
                                   src={optimizeImageUrl(p.image, 100)}
                                   className={`w-16 h-16 object-cover rounded-lg ${p.is_blocked ? 'grayscale' : ''}`}
                                   referrerPolicy="no-referrer"
@@ -1319,7 +1373,7 @@ export default function App() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {order.items.map(item => (
                               <div key={item.id} className="flex gap-3 bg-black/30 p-3 rounded-xl border border-white/5">
-                                <img src={optimizeImageUrl(item.image, 100)} className="w-12 h-12 object-cover rounded-lg" referrerPolicy="no-referrer" />
+                                <SmartImage src={optimizeImageUrl(item.image, 100)} className="w-12 h-12 object-cover rounded-lg" referrerPolicy="no-referrer" />
                                 <div><p className="text-sm font-bold truncate">{item.name}</p><p className="text-[10px] text-white/40">Կոդ: {item.code} | Քանակ: {item.quantity}</p><p className="text-xs text-orange-400">{item.price_at_time.toLocaleString()} ֏</p></div>
                               </div>
                             ))}
