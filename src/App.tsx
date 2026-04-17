@@ -79,7 +79,7 @@ function SmartImage({
         onLoad={() => setLoaded(true)}
         onError={handleError}
         className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'} ${className}`}
-        style={style}
+        style={{ ...style, transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
       />
     </div>
   );
@@ -382,7 +382,7 @@ function CategoryActionCard({ title, desc, color, onClick }: { title: string, de
   return (
     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={onClick} className={`${color} p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] text-white relative overflow-hidden group h-full flex flex-col justify-end min-h-[200px] sm:min-h-[280px] shadow-2xl`}>
       <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110 duration-500"><Plus size={120} /></div>
-      <div className="relative z-10 text-left"><h3 className="text-2xl sm:text-4xl font-black tracking-tighter leading-none mb-2">{title}</h3><p className="text-white/70 text-xs sm:text-sm font-medium max-w-[200px]">{desc}</p></div>
+      <div className="relative z-10 text-left"><h3 className="text-xl sm:text-4xl font-black tracking-tighter leading-none mb-2">{title}</h3><p className="text-white/70 text-[10px] sm:text-sm font-medium max-w-[200px]">{desc}</p></div>
     </motion.button>
   );
 }
@@ -392,7 +392,7 @@ function CategoryCard({ title, image, onClick }: { title: string, image: string,
     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={onClick} className="relative h-64 sm:h-96 rounded-[2rem] sm:rounded-[3rem] overflow-hidden group shadow-2xl">
       <SmartImage src={image} alt={title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" referrerPolicy="no-referrer" />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-      <div className="absolute bottom-6 left-6 sm:bottom-8 sm:left-8 text-left"><h3 className="text-2xl sm:text-3xl font-black tracking-tighter leading-none">{title}</h3><p className="text-blue-400 text-xs sm:text-sm font-bold mt-2 flex items-center gap-2">ԴԻՏԵԼ <Plus size={16} /></p></div>
+      <div className="absolute bottom-6 left-6 sm:bottom-8 sm:left-8 text-left"><h3 className="text-xl sm:text-3xl font-black tracking-tighter leading-none">{title}</h3><p className="text-blue-400 text-[10px] sm:text-sm font-bold mt-2 flex items-center gap-2 uppercase">ԴԻՏԵԼ <Plus size={14} className="sm:size-4" /></p></div>
     </motion.button>
   );
 }
@@ -1020,12 +1020,12 @@ export default function App() {
                     <ChevronLeft size={24} className="hidden sm:block" />
                   </button>
                   <div className="flex items-center justify-between w-full">
-                    <h2 className="text-[15px] sm:text-3xl font-bold uppercase tracking-tight leading-tight">{category === 'sneakers' ? 'Սպորտային կոշիկներ' : 'Հողաթափեր'}</h2>
+                    <h2 className="text-[13px] sm:text-3xl font-bold uppercase tracking-tight leading-tight">{category === 'sneakers' ? 'Սպորտային կոշիկներ' : 'Հողաթափեր'}</h2>
                   </div>
                 </div>
                 <div className="relative w-full max-w-md">
                   <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-white/40" size={13} />
-                  <input type="text" placeholder="Փնտրել ապրանք..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl pl-8 sm:pl-12 pr-4 py-2 sm:py-3 text-[11px] sm:text-base outline-none focus:border-blue-500 transition-colors" />
+                  <input type="text" placeholder="Փնտրել ապրանք..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl pl-8 sm:pl-12 pr-4 py-2 sm:py-3 text-[10px] sm:text-base outline-none focus:border-blue-500 transition-colors placeholder:text-[9px] sm:placeholder:text-base" />
                 </div>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
@@ -1052,8 +1052,8 @@ export default function App() {
               {/* Mobile: small back button bottom-right fixed */}
               <button
                 onClick={() => setView('categories')}
-                className="sm:hidden fixed bottom-5 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs active:scale-95 shadow-lg"
-                style={{ background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)' }}
+                className="sm:hidden fixed bottom-5 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-[10px] active:scale-95 shadow-lg"
+                style={{ background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
               >
                 <ChevronLeft size={14} />
                 Հետ
@@ -1175,8 +1175,8 @@ export default function App() {
               {/* Mobile: fixed bottom-right back button */}
               <button
                 onClick={() => setView(previousView)}
-                className="sm:hidden fixed bottom-5 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs active:scale-95 shadow-lg"
-                style={{ background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)' }}
+                className="sm:hidden fixed bottom-5 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-[10px] active:scale-95 shadow-lg"
+                style={{ background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
               >
                 <ChevronLeft size={14} />
                 Հետ
@@ -1188,14 +1188,14 @@ export default function App() {
             <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {!adminAuth ? (
                 <div className="max-w-sm mx-auto py-10 sm:py-20">
-                  <h2 className="text-[13px] sm:text-2xl font-bold mb-5 sm:mb-6 text-center tracking-wide">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
+                  <h2 className="text-[12px] sm:text-2xl font-bold mb-5 sm:mb-6 text-center tracking-widest uppercase">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
                   <form onSubmit={(e) => { e.preventDefault(); handleAdminLogin(adminPassInput); }} autoComplete="off" className="space-y-3 sm:space-y-4">
                     <input 
                       type="password" 
                       placeholder="Գաղտնաբառ" 
                       value={adminPassInput} 
                       onChange={(e) => setAdminPassInput(e.target.value)} 
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 sm:px-6 py-2.5 sm:py-4 text-[11px] sm:text-base outline-none focus:border-blue-500 placeholder:text-[11px] sm:placeholder:text-base" 
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 sm:px-6 py-2 sm:py-4 text-[10px] sm:text-base outline-none focus:border-blue-500 placeholder:text-[9px] sm:placeholder:text-base" 
                       autoComplete="off"
                       autoCorrect="off"
                       autoCapitalize="off"
@@ -1207,7 +1207,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setView('home')}
-                        className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-2.5 sm:py-4 rounded-2xl font-bold text-[10px] sm:text-sm transition-all active:scale-95 hover:bg-white/10 shrink-0"
+                        className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-2 sm:py-4 rounded-2xl font-bold text-[9px] sm:text-sm transition-all active:scale-95 hover:bg-white/10 shrink-0"
                         style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}
                       >
                         <ChevronLeft size={12} className="sm:hidden" />
@@ -1215,7 +1215,7 @@ export default function App() {
                         <span className="hidden sm:inline">Վերադառնալ</span>
                         <span className="sm:hidden">Հետ</span>
                       </button>
-                      <button type="submit" disabled={isLoggingIn} className="flex-1 py-2.5 sm:py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-black text-[11px] sm:text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
+                      <button type="submit" disabled={isLoggingIn} className="flex-1 py-2 sm:py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-black text-[10px] sm:text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
                     </div>
                   </form>
                 </div>
