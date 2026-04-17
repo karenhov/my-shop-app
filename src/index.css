@@ -1,6 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
+/* =====================================================
+   SAFARI CROSS-BROWSER COMPATIBILITY FIXES
+   Covers: iOS Safari 14+, macOS Safari 14+, all active versions
+   ===================================================== */
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
@@ -129,32 +134,198 @@
   }
 }
 
-/* Safari Backdrop Filter Fix */
-.backdrop-blur-sm { -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
-.backdrop-blur-md { -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
-.backdrop-blur-lg { -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
-.backdrop-blur-xl { -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); }
-
-/* Prevent Safari default button styles */
-button {
-  -webkit-appearance: none;
-  appearance: none;
+/* ── Backdrop blur: Safari requires -webkit- prefix (all versions) ── */
+.backdrop-blur-sm  { -webkit-backdrop-filter: blur(4px);  backdrop-filter: blur(4px);  }
+.backdrop-blur-md  { -webkit-backdrop-filter: blur(8px);  backdrop-filter: blur(8px);  }
+.backdrop-blur-lg  { -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.backdrop-blur-xl  { -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); }
+.backdrop-blur-2xl { -webkit-backdrop-filter: blur(40px); backdrop-filter: blur(40px); }
+/* Nav bar backdrop */
+nav .backdrop-blur-md,
+[style*="backdrop-filter"] {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
-/* Smooth scrolling for iOS Safari */
+/* ── Buttons: reset Safari/iOS default appearance ── */
+button,
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  /* Safari sometimes clips rounded corners on buttons */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* ── Inputs/Textareas: fix Safari default styling ── */
+input,
+textarea,
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  /* Prevent iOS Safari from zooming on focus (font-size ≥ 16px) */
+  font-size: 16px;
+  border-radius: 0;
+}
+/* Restore designed radius after reset */
+input.rounded-xl,
+textarea.rounded-xl,
+select.rounded-xl { border-radius: 0.75rem; }
+input.rounded-2xl,
+textarea.rounded-2xl,
+select.rounded-2xl { border-radius: 1rem; }
+
+/* ── Gradient text: Safari needs both -webkit- and standard ── */
+.bg-clip-text,
+[class*="bg-clip-text"] {
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* ── Text fill: explicit transparent for gradient text ── */
+[class*="text-transparent"] {
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* ── Smooth scrolling + iOS momentum scrolling ── */
 html {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
 }
+body {
+  /* Prevent horizontal scroll flash on iOS */
+  overflow-x: hidden;
+}
 
-/* SmartImage skeleton pulse */
+/* ── Fixed positioning: iOS Safari viewport fix ── */
+/* Addresses the "100vh = address bar included" iOS bug */
+.min-h-screen {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+html {
+  height: -webkit-fill-available;
+}
+
+/* ── Framer Motion / AnimatePresence: Safari GPU compositing ── */
+/* Force compositing layer so transforms render correctly */
+[style*="transform"],
+[style*="opacity"] {
+  -webkit-transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+/* ── Flexbox gap: Safari 14 partial gap support fix ── */
+/* Safari 14 supports gap in flex but some older 14.x builds have glitches.
+   We use margin fallbacks via a safe class pattern below. */
+.flex-gap-fallback > * + * { margin-left: 0.5rem; }
+
+/* ── Object-fit: ensure correct behavior on older Safari ── */
+img {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* ── Transition / active states: iOS Safari tap highlight ── */
+a, button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ── active:scale transforms on iOS ── */
+/* Safari needs translateZ(0) to correctly apply scale on :active */
+button:active {
+  -webkit-transform: scale(0.95) translateZ(0);
+  transform: scale(0.95) translateZ(0);
+}
+
+/* ── Position sticky: Safari requires -webkit- ── */
+.sticky,
+[class*="sticky"] {
+  position: -webkit-sticky;
+  position: sticky;
+}
+
+/* ── Fixed nav/overlay: ensure correct stacking on iOS ── */
+.fixed {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* ── Overflow scroll areas: iOS momentum ── */
+.overflow-auto,
+.overflow-y-auto,
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Selection color: explicit cross-browser ── */
+::selection {
+  background-color: rgba(59, 130, 246, 0.3);
+  -webkit-text-fill-color: white;
+  color: white;
+}
+
+/* ── Grid: Safari 14 gap support (safe) ── */
+/* No changes needed — CSS Grid gap is fully supported in Safari 10.1+ */
+
+/* ── SmartImage skeleton pulse ── */
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  50%       { opacity: 0.4; }
+}
+@-webkit-keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
 }
 .animate-pulse {
+  -webkit-animation: skeleton-pulse 1.5s ease-in-out infinite;
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
+
+/* ── Spin animation (Loader2) ── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@-webkit-keyframes spin {
+  from { -webkit-transform: rotate(0deg); }
+  to   { -webkit-transform: rotate(360deg); }
+}
+.animate-spin {
+  -webkit-animation: spin 1s linear infinite;
+  animation: spin 1s linear infinite;
+}
+
 .rounded-inherit {
   border-radius: inherit;
+}
+
+/* ── html-to-image / toPng Safari fix ──
+   Safari does not taint canvas for cross-origin images with no CORS headers.
+   We force no-referrer + crossOrigin="anonymous" at the component level (already done),
+   but also ensure captured elements have background rendering enabled. */
+[data-capture-root] {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ── Share button: ensure opacity transition works in Safari ── */
+button[disabled] {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* ── Font antialiasing: consistent across Safari / Chrome ── */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
