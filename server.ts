@@ -274,8 +274,10 @@ async function startServer() {
     contentSecurityPolicy: false, // Միացրած է, եթե կկարգավորվի, բայց այս պահին false՝ նկարների համար
     crossOriginEmbedderPolicy: false,
   }));
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+  // Upload endpoint-ի համար մեծ limit, մնացածի համար՝ փոքր (DoS պաշտպանություն)
+  app.use('/api/upload-cart-image', express.json({ limit: '50mb' }));
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
   // Brute-force protection for admin login
   const loginLimiter = rateLimit({
@@ -284,7 +286,17 @@ async function startServer() {
     message: { error: "Չափազանց շատ փորձեր, խնդրում ենք փորձել մի փոքր ուշ:" },
     standardHeaders: true,
     legacyHeaders: false,
-    validate: { trustProxy: false }, // Disables the check as we already set it in Express
+    validate: { trustProxy: false },
+  });
+
+  // Upload endpoint-ի rate limit — Cloudinary-ի ծախսից պաշտպանություն
+  const uploadLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10, // max 10 upload per IP per minute
+    message: { error: "Չափազանց շատ upload, խնդրում ենք մի փոքր սպասել:" },
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { trustProxy: false },
   });
   
   // Products
@@ -370,9 +382,13 @@ async function startServer() {
       if (!isMatch) return res.status(401).json({ error: "Unauthorized" });
       if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "No IDs provided" });
 
+      // SQL injection պաշտպանություն — id-ները integer-ի վերածել
+      const safeIds = ids.map((id: any) => parseInt(id, 10)).filter((id: number) => !isNaN(id) && id > 0);
+      if (safeIds.length === 0) return res.status(400).json({ error: "Invalid IDs" });
+
       const blockedValue = isPostgres ? is_blocked : (is_blocked ? 1 : 0);
 
-      for (const id of ids) {
+      for (const id of safeIds) {
         await query("UPDATE products SET is_blocked = $1 WHERE id = $2", [blockedValue, id]);
       }
 
@@ -537,14 +553,8 @@ async function startServer() {
     }
   });
 
-  // GET /api/orders — kept for backward compatibility only
-  app.get("/api/orders", async (req, res) => {
-    try {
-      await handleFetchOrders(req.query.password as string, res);
-    } catch (error) {
-      res.status(500).json({ error: "Database error" });
-    }
-  });
+  // GET /api/orders — հեռացված է անվտանգության պատճառով (password query string-ում էր)
+  // Օգտագործել POST /api/orders/list
 
   app.delete("/api/orders/:id", async (req, res) => {
     try {
@@ -662,7 +672,7 @@ async function startServer() {
   });
 
   // Cart image upload — Cloudinary (persistent, works on Render)
-  app.post("/api/upload-cart-image", async (req, res) => {
+  app.post("/api/upload-cart-image", uploadLimiter, async (req, res) => {
     try {
       const { image } = req.body;
       if (!image || !image.startsWith("data:image/png;base64,")) {
