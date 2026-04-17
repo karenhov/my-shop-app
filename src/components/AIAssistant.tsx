@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MessagesSquare, X, Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
+import DOMPurify from 'dompurify';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -155,15 +156,15 @@ const FAQ_DATA = [
   },
   {
     keywords: ['viber', 'вайбер', 'vajber', 'viber number', 'viber@ vorinj e'],
-    answer: "💜 **Viber**-ով կապ.\n\nՍեղմեք կայքի վերևի **Viber** (մանուշակագույն) կոճակը կամ **Զամբյուղի** «ԿԻՍՎԵԼ ԶԱՄԲՅՈՒՂՈՎ» բաժնի Viber կոճակը։\n\n✅ Կարող եք ուղղակիորեն ուղարկել ձեր ընտրած ապրանքների ցանկը։"
+    answer: "💜 **Viber**-ով կապ.\n\nՍեղմեք կայքի վերևի **Viber** (մանուշակագույն) կոճակը կամ **Զամբյուղի** «ԿԻՍՎԵԼ ԶԱＭՅՈՒՂՈՎ» բաժնի Viber կոճակը։\n\n✅ Կարող եք ուղղակիորեն ուղարկել ձեր ընտրած ապրանքների ցանկը։"
   },
   {
     keywords: ['telegram', 'телеграм', 'telegram@ vorinj e', 'телеграм канал'],
-    answer: "🔵 **Telegram**-ով կապ.\n\nՍեղմեք կայքի վերևի **Telegram** (կապույտ) կոճակը կամ **Զամբյուղի** «ԿԻՍՎԵԼ ԶԱՄԲՅՈՒՂՈՎ» բաժնի Telegram կոճակը։\n\n✅ Հարմար է զամբյուղի պատկերն ու ցանկը ուղարկելու համար։"
+    answer: "🔵 **Telegram**-ով կապ.\n\nՍեղմեք կայքի վերևի **Telegram** (կապույտ) կոճակը կամ **Զամբյուղի** «ԿԻՍՎԵԼ ԶԱＭՅՈՒՂՈՎ» բաժնի Telegram կոճակը։\n\n✅ Հարմար է զամբյուղի պատկերն ու ցանկը ուղարկելու համար։"
   },
   {
     keywords: ['whatsapp', 'вацап', 'vacap', 'whatsapp@ vorinj e'],
-    answer: "💚 **WhatsApp**-ով կապ.\n\nՍեղմեք կայքի վերևի **WhatsApp** (կանաչ) կոճակը կամ **Զամբյուղի** «ԿԻՍՎԵԼ ԶԱՄԲՅՈՒՂՈՎ» բաժնի WhatsApp կոճակը։\n\n✅ Հարմար է ապրանքների ցանկն ու ընդհանուր գումարը ուղարկելու համար։"
+    answer: "💚 **WhatsApp**-ով կապ.\n\nՍեղմեք կայքի վերևի **WhatsApp** (կանաչ) կոճակը կամ **Զամբյուղի** «ԿԻՍՎԵԼ ԶԱＭՅՈՒՂՈՎ» բաժնի WhatsApp կոճակը։\n\n✅ Հարմար է ապրանքների ցանկն ու ընդհանուր գումարը ուղարկելու համար։"
   },
 
   // ============ ԱՌԱՔՈՒՄ ============
@@ -247,7 +248,7 @@ const getLocalFallbackResponse = (query: string, products: any[]) => {
     foundProducts.forEach(p => {
       resp += `🔹 **${p.name}**\n💰 Գին՝ **${p.price.toLocaleString()} ֏**\n🔢 Կոդ՝ **${p.code}**\n${p.category === 'sneakers' ? '👟 Սպորտային կոշիկ' : '🥿 Հողաթափ'}\n\n`;
     });
-    resp += "💡 Ապրանքները ավելացնելու համար մտեք համապատասխան բաժին և սեղմեք **«ՈՒՂՂԱՐԿԵԼ ԶԱՄԲՅՈՒՂ»**։";
+    resp += "💡 Ապրանքները ավելացնելու համար մտեք համապատասխան բաժին և սեղմեք **«ՈՒՂՂԱՐԿԵԼ ԶԱＭՅՈՒՂ»**։";
     return resp;
   }
 
@@ -319,7 +320,7 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
 
     // ========== ՓՈՐՁ API-ի հետ աշխատել ==========
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (process as any).env?.GEMINI_API_KEY;
       
       // Եթե API key չկա կամ API-ն նախկինում հասանելի չէր
       if (!apiKey || !apiAvailable) {
@@ -350,11 +351,11 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
 6. **Նկարների դիտում**: Նկարը ավելի մեծ դիտելու համար **սեղմած պահեք նկարի վրա**, և կհայտնվեն համապատասխան տարբերակներ այն մեծացնելու համար: Եթե նկարները լիարժեք չեն երևում, թարմացրեք էջը կամ սպասեք:
 7. **Պրոմոկոդ**: Նախատեսված է զեղչի համար: Այն պետք է վերցնել կայքի **ադմինից**:
 8. **Զամբյուղի պահպանում**: Ձեր ընտրված ապրանքները զամբյուղում երևում են այնքան ժամանակ, քանի դեռ չեք կատարել պատվեր կամ չեք կիսվել դրանցով սոց. հավելվածների միջոցով:
-9. **Բջջային տարբերակ (Mobile)**: Կայքի ներքևի մասում կա նավիգացիոն տող (Bottom Nav) հետևյալ կոճակներով՝ **ԳԼԽԱՎՈՐ**, **ԲԱԺԻՆՆԵՐ**, **ԶԱＭԲՅՈՒՂ** և **ԱԴՄԻՆ**:
+9. **Բջջային տարբերակ (Mobile)**: Կայքի ներքևի մասում կա նավիգացիոն տող (Bottom Nav) հետևյալ կոճակներով՝ **ԳԼԽԱՎՈՐ**, **ԲԱԺԻՆՆԵՐ**, **ԶԱＭՅՈՒՂ** և **ԱԴՄԻՆ**:
 
 ԿԱՆՈՆՆԵՐ:
 - Պատասխանեք ՄԻԱՅՆ կայքին և ապրանքներին վերաբերող հարցերին:
-- Յուրաքանչյուր պատասխան պետք է լինի կոնկրետ: Օրինակ՝ "Սեղմեք ներքևի նավիգացիոն տողի կենտրոնում գտնվող ԶԱՄԲՅՈՒՂ կոճակը":
+- Յուրաքանչյուր պատասխան պետք է լինի կոնկրետ: Օրինակ՝ "Սեղմեք ներքևի նավիգացիոն տողի կենտրոնում գտնվող ԶԱՄＢՅՈՒՂ կոճակը":
 - Եթե հարցը վերաբերում է ապրանքին, նշեք դրա գինը և կոդը:
 - Օգտագործեք Markdown: Կարևոր բառերը դարձրեք **bold**:
 
@@ -372,17 +373,17 @@ ${JSON.stringify(productData)}
 
       // AbortController — stream cancel
       abortRef.current = new AbortController();
-      const stream = await ai.models.generateContentStream({
-        model: 'gemini-2.5-flash',
+      const stream = await (ai as any).models.generateContentStream({
+        model: 'gemini-1.5-flash',
         contents,
         systemInstruction,
         config: { temperature: 0.7, topP: 0.9, topK: 40 }
-      }, { signal: abortRef.current.signal });
+      });
       let fullText = '';
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
-      for await (const chunk of stream) {
-        const text = chunk.text?.() ?? '';
+      for await (const chunk of (stream as any)) {
+        const text = (chunk as any).text ?? '';
         fullText += text;
         setMessages(prev => {
           const updated = [...prev];
@@ -402,7 +403,7 @@ ${JSON.stringify(productData)}
       
       // ԿԱՐԵՎՈՐ: Console-ում սխալ ՉԻ ՑՈՒՑԱԴՐՎԵԼՈՒ
       // error-ը լոգավորվում է միայն development-ում, production-ում ոչ
-      if (import.meta.env.DEV) {
+      if ((import.meta as any).env?.DEV) {
         console.warn('AI Assistant: Falling back to local FAQ', error?.message);
       }
       
@@ -520,7 +521,7 @@ ${JSON.stringify(productData)}
                             ? 'bg-[#3b82f6] text-white rounded-tr-none' 
                             : 'bg-zinc-800 text-white border border-white/10 rounded-tl-none'
                         }`}>
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          <ReactMarkdown>{DOMPurify.sanitize(msg.content)}</ReactMarkdown>
                           {isLoading && idx === messages.length - 1 && msg.role === 'assistant' && (
                             <span className="typing-cursor" />
                           )}
