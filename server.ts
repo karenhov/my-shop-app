@@ -6,6 +6,9 @@ import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
+import { rateLimit } from 'express-rate-limit';
+import helmet from "helmet";
 
 dotenv.config();
 
@@ -239,10 +242,19 @@ async function initDb() {
     // Column probably already exists
   }
 
-  // Set default admin password if not exists
+  // Set default admin password if not exists or hash it if it's plain text
   const adminPass = await query("SELECT value FROM admin_settings WHERE key = 'password'");
   if (adminPass.rowCount === 0) {
-    await query("INSERT INTO admin_settings (key, value) VALUES ('password', 'admin123')");
+    const hashedDefault = await bcrypt.hash('admin123', 10);
+    await query("INSERT INTO admin_settings (key, value) VALUES ('password', $1)", [hashedDefault]);
+  } else {
+    const currentVal = adminPass.rows[0].value;
+    // Check if it looks like a bcrypt hash (bcrypt hashes usually start with $2a$, $2b$, or $2y$)
+    if (!currentVal.startsWith('$2')) {
+      console.log("🔒 Migrating plain-text admin password to hashed version...");
+      const hashed = await bcrypt.hash(currentVal, 10);
+      await query("UPDATE admin_settings SET value = $1 WHERE key = 'password'", [hashed]);
+    }
   }
 }
 
@@ -257,10 +269,23 @@ async function startServer() {
   }
   
   const app = express();
+  app.set('trust proxy', 1); // Trust the first proxy (Cloud Run/Nginx)
+  app.use(helmet({
+    contentSecurityPolicy: false, // Միացրած է, եթե կկարգավորվի, բայց այս պահին false՝ նկարների համար
+    crossOriginEmbedderPolicy: false,
+  }));
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  // API Routes
+  // Brute-force protection for admin login
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // Limit each IP to 10 login attempts per windowMs
+    message: { error: "Չափազանց շատ փորձեր, խնդրում ենք փորձել մի փոքր ուշ:" },
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { trustProxy: false }, // Disables the check as we already set it in Express
+  });
   
   // Products
   app.get("/api/products", async (req, res) => {
@@ -280,9 +305,10 @@ async function startServer() {
     try {
       const { name, price, code, description, image, category, min_quantity, password } = req.body;
       const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      const currentPass = adminPassResult.rows[0];
+      const currentPassHash = adminPassResult.rows[0].value;
       
-      if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+      const isMatch = await bcrypt.compare(password || "", currentPassHash);
+      if (!isMatch) return res.status(401).json({ error: "Unauthorized" });
 
       const result = await query(
         "INSERT INTO products (name, price, code, description, image, category, min_quantity) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
@@ -300,9 +326,10 @@ async function startServer() {
     try {
       const { password } = req.body;
       const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      const currentPass = adminPassResult.rows[0];
+      const currentPassHash = adminPassResult.rows[0].value;
       
-      if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+      const isMatch = await bcrypt.compare(password || "", currentPassHash);
+      if (!isMatch) return res.status(401).json({ error: "Unauthorized" });
 
       await query("DELETE FROM products WHERE id = $1", [req.params.id]);
       res.json({ success: true });
@@ -315,9 +342,10 @@ async function startServer() {
     try {
       const { name, price, code, description, image, category, min_quantity, password } = req.body;
       const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      const currentPass = adminPassResult.rows[0];
+      const currentPassHash = adminPassResult.rows[0].value;
       
-      if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+      const isMatch = await bcrypt.compare(password || "", currentPassHash);
+      if (!isMatch) return res.status(401).json({ error: "Unauthorized" });
 
       await query(`
         UPDATE products 
@@ -336,9 +364,10 @@ async function startServer() {
     try {
       const { ids, is_blocked, password } = req.body;
       const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      const currentPass = adminPassResult.rows[0];
+      const currentPassHash = adminPassResult.rows[0].value;
 
-      if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+      const isMatch = await bcrypt.compare(password || "", currentPassHash);
+      if (!isMatch) return res.status(401).json({ error: "Unauthorized" });
       if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "No IDs provided" });
 
       const blockedValue = isPostgres ? is_blocked : (is_blocked ? 1 : 0);
@@ -367,9 +396,10 @@ async function startServer() {
     try {
       const { code, discount_percent, password } = req.body;
       const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      const currentPass = adminPassResult.rows[0];
+      const currentPassHash = adminPassResult.rows[0].value;
       
-      if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+      const isMatch = await bcrypt.compare(password || "", currentPassHash);
+      if (!isMatch) return res.status(401).json({ error: "Unauthorized" });
 
       const result = await query(
         "INSERT INTO promo_codes (code, discount_percent) VALUES ($1, $2) RETURNING id",
@@ -386,9 +416,10 @@ async function startServer() {
     try {
       const { password } = req.body;
       const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      const currentPass = adminPassResult.rows[0];
+      const currentPassHash = adminPassResult.rows[0].value;
       
-      if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+      const isMatch = await bcrypt.compare(password || "", currentPassHash);
+      if (!isMatch) return res.status(401).json({ error: "Unauthorized" });
 
       await query("DELETE FROM promo_codes WHERE id = $1", [req.params.id]);
       res.json({ success: true });
@@ -475,8 +506,11 @@ async function startServer() {
   // Shared handler for fetching orders (used by both GET legacy and POST secure)
   const handleFetchOrders = async (password: string | undefined, res: any) => {
     const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-    const currentPass = adminPassResult.rows[0];
-    if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+    const currentPassHash = adminPassResult.rows[0].value;
+    
+    const isMatch = await bcrypt.compare(password || "", currentPassHash);
+    if (!isMatch) return res.status(401).json({ error: "Unauthorized" });
+
     const ordersResult = await query("SELECT * FROM orders ORDER BY created_at DESC");
     const orders = ordersResult.rows;
     const ordersWithItems = await Promise.all(orders.map(async (order: any) => {
@@ -516,9 +550,10 @@ async function startServer() {
     try {
       const { password } = req.body;
       const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      const currentPass = adminPassResult.rows[0];
+      const currentPassHash = adminPassResult.rows[0].value;
       
-      if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+      const isMatch = await bcrypt.compare(password || "", currentPassHash);
+      if (!isMatch) return res.status(401).json({ error: "Unauthorized" });
 
       await query("DELETE FROM order_items WHERE order_id = $1", [req.params.id]);
       await query("DELETE FROM orders WHERE id = $1", [req.params.id]);
@@ -532,9 +567,10 @@ async function startServer() {
     try {
       const { password } = req.body;
       const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      const currentPass = adminPassResult.rows[0];
+      const currentPassHash = adminPassResult.rows[0].value;
       
-      if (password !== currentPass.value) return res.status(401).json({ error: "Unauthorized" });
+      const isMatch = await bcrypt.compare(password || "", currentPassHash);
+      if (!isMatch) return res.status(401).json({ error: "Unauthorized" });
 
       await query("DELETE FROM order_items");
       await query("DELETE FROM orders");
@@ -563,21 +599,20 @@ async function startServer() {
     }
   });
 
-  app.post("/api/admin/login", async (req, res) => {
+  app.post("/api/admin/login", loginLimiter, async (req, res) => {
     try {
       const { password } = req.body;
-      let currentPass = "admin123";
+      let currentPassHash = "";
       
-      try {
-        const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-        if (adminPassResult.rows.length > 0) {
-          currentPass = adminPassResult.rows[0].value;
-        }
-      } catch (dbError) {
-        console.error("Login DB fallback triggered:", dbError);
+      const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
+      if (adminPassResult.rows.length > 0) {
+        currentPassHash = adminPassResult.rows[0].value;
+      } else {
+        return res.status(500).json({ error: "Admin settings not initialized" });
       }
       
-      if (password === currentPass) {
+      const isMatch = await bcrypt.compare(password, currentPassHash);
+      if (isMatch) {
         res.json({ success: true });
       } else {
         res.status(401).json({ error: "Invalid password" });
@@ -591,10 +626,12 @@ async function startServer() {
     try {
       const { oldPassword, newPassword } = req.body;
       const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      const currentPass = adminPassResult.rows[0];
+      const currentPassHash = adminPassResult.rows[0].value;
       
-      if (oldPassword === currentPass.value) {
-        await query("UPDATE admin_settings SET value = $1 WHERE key = 'password'", [newPassword]);
+      const isMatch = await bcrypt.compare(oldPassword, currentPassHash);
+      if (isMatch) {
+        const hashedNew = await bcrypt.hash(newPassword, 10);
+        await query("UPDATE admin_settings SET value = $1 WHERE key = 'password'", [hashedNew]);
         res.json({ success: true });
       } else {
         res.status(401).json({ error: "Invalid old password" });
