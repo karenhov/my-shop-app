@@ -31,10 +31,26 @@ async function preloadImagesAsBase64(node: HTMLElement): Promise<void> {
     imgs.map(img => new Promise<void>(resolve => {
       // Skip already-inlined or data: URLs
       if (!img.src || img.src.startsWith('data:')) { resolve(); return; }
-      // If already fully loaded (naturalWidth > 0) try to inline it
-      const fetchAndInline = () => {
-        fetch(img.src, { mode: 'cors', cache: 'force-cache' })
-          .then(r => r.blob())
+
+      const fetchAndInline = (srcUrl: string) => {
+        // Safari Fix: cache-bust URL-ը՝ խուսափելու cached non-CORS response-ից
+        // Safari-ն lock է անում image-ն cache-ում առանց CORS header-ի, և force-cache-ն
+        // վերադարձնում է կոռումպացված response, ինչի հետևանքով canvas-ն blank է լինում։
+        const bustUrl = (() => {
+          try {
+            const u = new URL(srcUrl, window.location.href);
+            u.searchParams.set('_safari_cb', Date.now().toString());
+            return u.toString();
+          } catch {
+            return srcUrl + (srcUrl.includes('?') ? '&' : '?') + '_safari_cb=' + Date.now();
+          }
+        })();
+
+        fetch(bustUrl, { mode: 'cors', cache: 'no-store' })
+          .then(r => {
+            if (!r.ok) throw new Error('fetch failed');
+            return r.blob();
+          })
           .then(blob => new Promise<string>((res, rej) => {
             const reader = new FileReader();
             reader.onload = () => res(reader.result as string);
@@ -44,14 +60,21 @@ async function preloadImagesAsBase64(node: HTMLElement): Promise<void> {
           .then(dataUrl => { img.src = dataUrl; img.crossOrigin = null; resolve(); })
           .catch(() => resolve()); // fail gracefully — keep original src
       };
+
       if (img.complete && img.naturalWidth > 0) {
-        fetchAndInline();
+        fetchAndInline(img.src);
       } else {
-        img.onload = fetchAndInline;
+        img.onload = () => fetchAndInline(img.src);
         img.onerror = () => resolve();
-        // Force reload without lazy
+        // Safari Fix: img.src = img.src does NOT re-trigger in Safari — cache-bust instead
         img.loading = 'eager';
-        if (!img.src.startsWith('data:')) img.src = img.src; // re-trigger
+        try {
+          const u = new URL(img.src, window.location.href);
+          u.searchParams.set('_eager', '1');
+          img.src = u.toString();
+        } catch {
+          img.src = img.src + (img.src.includes('?') ? '&' : '?') + '_eager=1';
+        }
       }
     }))
   );
@@ -155,14 +178,32 @@ function ShareCartButtons({ cartSectionRef, cart, total, onClearCart }: {
     try {
       // Safari fix: inline all images as base64 before html-to-image renders
       await preloadImagesAsBase64(cartSectionRef.current);
-      // Small wait to ensure DOM reflects inlined srcs
-      await new Promise(r => setTimeout(r, 80));
+      // Safari fix: longer wait — Safari DOM reflow-ն ավելի դանդաղ է
+      await new Promise(r => setTimeout(r, 200));
+
+      // Safari fix: WebkitTextFillColor: transparent-ը canvas-ում invisible է դառնում
+      // Ժամանակավոր patch — gradient text-ը plain white դարձնել screenshot-ի ժամանակ
+      const gradientEls = Array.from(
+        cartSectionRef.current.querySelectorAll<HTMLElement>('[style*="WebkitTextFillColor"], [style*="webkitTextFillColor"]')
+      );
+      const savedFill = gradientEls.map(el => el.style.webkitTextFillColor);
+      const savedBg = gradientEls.map(el => el.style.backgroundImage);
+      gradientEls.forEach(el => {
+        el.style.webkitTextFillColor = 'white';
+        el.style.backgroundImage = 'none';
+      });
 
       const dataUrl = await toPng(cartSectionRef.current, {
         backgroundColor: '#09090b',
         pixelRatio: 2,
         skipFonts: false,
         filter: (node: HTMLElement) => node.dataset?.shareIgnore !== 'true',
+      });
+
+      // Restore gradient styles after capture
+      gradientEls.forEach((el, i) => {
+        el.style.webkitTextFillColor = savedFill[i];
+        el.style.backgroundImage = savedBg[i];
       });
 
       setStatusMsg('Վերբեռնվում է...');
@@ -185,13 +226,17 @@ function ShareCartButtons({ cartSectionRef, cart, total, onClearCart }: {
         whatsapp: `https://wa.me/?text=${msg}`,
         telegram: `https://t.me/share/url?url=${encodeURIComponent(imageUrl)}&text=${encodeURIComponent(`🛒 Զամբյուղ — ${total.toLocaleString()} ֏`)}`,
       };
-      if (isMobile) {
-        window.location.href = urls[platform];
-      } else if (newTab) {
-        newTab.location.href = urls[platform];
-      } else {
-        window.open(urls[platform], '_blank');
-      }
+      // Safari fix: window.location.href async-ից հետո block-վում է iOS Safari-ում։
+      // Hidden <a> + .click() — user gesture chain-ը պահպանվում է բոլոր browser-ներում։
+      const a = document.createElement('a');
+      a.href = urls[platform];
+      a.target = isMobile ? '_self' : '_blank';
+      a.rel = 'noopener noreferrer';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => document.body.removeChild(a), 500);
+      if (newTab) newTab.close(); // Desktop-ում about:blank-ն փակել
       // ── Ավտոմատ մաքրել զամբյուղը կիսվելուց հետո ──
       setTimeout(() => {
         onClearCart();
@@ -301,7 +346,8 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
     // Եթե cart view-ում չենք — նախ անցնել, սպասել DOM render-ին
     if (!cartSectionRef.current) {
       setView('cart');
-      await new Promise(resolve => setTimeout(resolve, 400));
+      // Safari fix: 600ms — Safari-ի DOM reflow-ն ավելի դանդաղ է Chrome-ից
+      await new Promise(resolve => setTimeout(resolve, 600));
     }
 
     if (!cartSectionRef.current) {
@@ -316,7 +362,19 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
       setStatusMsg('Ստեղծվում...');
       // Safari fix: inline all images as base64 before html-to-image renders
       await preloadImagesAsBase64(cartSectionRef.current!);
-      await new Promise(r => setTimeout(r, 80));
+      // Safari fix: longer wait for DOM to reflect inlined srcs
+      await new Promise(r => setTimeout(r, 200));
+
+      // Safari fix: WebkitTextFillColor: transparent — invisible on canvas
+      const gradientEls = Array.from(
+        cartSectionRef.current!.querySelectorAll<HTMLElement>('[style*="WebkitTextFillColor"], [style*="webkitTextFillColor"]')
+      );
+      const savedFill = gradientEls.map(el => el.style.webkitTextFillColor);
+      const savedBg = gradientEls.map(el => el.style.backgroundImage);
+      gradientEls.forEach(el => {
+        el.style.webkitTextFillColor = 'white';
+        el.style.backgroundImage = 'none';
+      });
 
       const dataUrl = await toPng(cartSectionRef.current!, {
         backgroundColor: '#09090b',
@@ -324,6 +382,13 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
         skipFonts: false,
         filter: (node: HTMLElement) => node.dataset?.shareIgnore !== 'true',
       });
+
+      // Restore gradient styles after capture
+      gradientEls.forEach((el, i) => {
+        el.style.webkitTextFillColor = savedFill[i];
+        el.style.backgroundImage = savedBg[i];
+      });
+
       setStatusMsg('Վերբեռնում...');
       const response = await fetch('/api/upload-cart-image', {
         method: 'POST',
@@ -344,13 +409,16 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
         whatsapp: `https://wa.me/?text=${fullMsg}`,
         telegram: `https://t.me/share/url?url=${encodedUrl}&text=${text}`,
       };
-      if (isMobile) {
-        window.location.href = urls[platform];
-      } else if (newTab) {
-        newTab.location.href = urls[platform];
-      } else {
-        window.open(urls[platform], '_blank');
-      }
+      // Safari fix: hidden <a> + .click() — user gesture chain պահպանվում է
+      const a = document.createElement('a');
+      a.href = urls[platform];
+      a.target = isMobile ? '_self' : '_blank';
+      a.rel = 'noopener noreferrer';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => document.body.removeChild(a), 500);
+      if (newTab) newTab.close();
       // ── Ավտոմատ մաքրել զամբյուղը կիսվելուց հետո ──
       setTimeout(() => {
         onClearCart();
