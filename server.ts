@@ -1,7 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import pkg from "pg";
-const { Pool } = pkg;
+import pg from "pg";
+const { Pool } = pg;
 import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
