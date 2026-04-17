@@ -24,6 +24,39 @@ import { Product, CartItem, PromoCode, Order } from './types';
 import { toPng } from 'html-to-image';
 import { AIAssistant } from './components/AIAssistant';
 
+// ---- Safari-safe: preload all images in a DOM node as base64 before screenshot ----
+async function preloadImagesAsBase64(node: HTMLElement): Promise<void> {
+  const imgs = Array.from(node.querySelectorAll('img')) as HTMLImageElement[];
+  await Promise.all(
+    imgs.map(img => new Promise<void>(resolve => {
+      // Skip already-inlined or data: URLs
+      if (!img.src || img.src.startsWith('data:')) { resolve(); return; }
+      // If already fully loaded (naturalWidth > 0) try to inline it
+      const fetchAndInline = () => {
+        fetch(img.src, { mode: 'cors', cache: 'force-cache' })
+          .then(r => r.blob())
+          .then(blob => new Promise<string>((res, rej) => {
+            const reader = new FileReader();
+            reader.onload = () => res(reader.result as string);
+            reader.onerror = rej;
+            reader.readAsDataURL(blob);
+          }))
+          .then(dataUrl => { img.src = dataUrl; img.crossOrigin = null; resolve(); })
+          .catch(() => resolve()); // fail gracefully — keep original src
+      };
+      if (img.complete && img.naturalWidth > 0) {
+        fetchAndInline();
+      } else {
+        img.onload = fetchAndInline;
+        img.onerror = () => resolve();
+        // Force reload without lazy
+        img.loading = 'eager';
+        if (!img.src.startsWith('data:')) img.src = img.src; // re-trigger
+      }
+    }))
+  );
+}
+
 // ---- SmartImage: retry on error, skeleton placeholder, cache-busting ----
 function SmartImage({
   src,
@@ -72,8 +105,8 @@ function SmartImage({
       <img
         src={src}
         alt={alt}
-        loading="lazy"
-        decoding="async"
+        loading="eager"
+        decoding="sync"
         referrerPolicy={referrerPolicy}
         crossOrigin={crossOrigin}
         onLoad={() => setLoaded(true)}
@@ -120,9 +153,15 @@ function ShareCartButtons({ cartSectionRef, cart, total, onClearCart }: {
     const newTab = isMobile ? null : window.open('about:blank', '_blank');
 
     try {
+      // Safari fix: inline all images as base64 before html-to-image renders
+      await preloadImagesAsBase64(cartSectionRef.current);
+      // Small wait to ensure DOM reflects inlined srcs
+      await new Promise(r => setTimeout(r, 80));
+
       const dataUrl = await toPng(cartSectionRef.current, {
         backgroundColor: '#09090b',
         pixelRatio: 2,
+        skipFonts: false,
         filter: (node: HTMLElement) => node.dataset?.shareIgnore !== 'true',
       });
 
@@ -275,9 +314,14 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
 
     try {
       setStatusMsg('Ստեղծվում...');
-      const dataUrl = await toPng(cartSectionRef.current, {
+      // Safari fix: inline all images as base64 before html-to-image renders
+      await preloadImagesAsBase64(cartSectionRef.current!);
+      await new Promise(r => setTimeout(r, 80));
+
+      const dataUrl = await toPng(cartSectionRef.current!, {
         backgroundColor: '#09090b',
         pixelRatio: 2,
+        skipFonts: false,
         filter: (node: HTMLElement) => node.dataset?.shareIgnore !== 'true',
       });
       setStatusMsg('Վերբեռնում...');
