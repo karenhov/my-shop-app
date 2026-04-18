@@ -1154,11 +1154,12 @@ export default function App() {
               <div className="flex justify-end mt-8 mb-4">
                 <button
                   onClick={() => setView('categories')}
-                  className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:bg-white/10"
+                  className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:bg-white/10 shrink-0"
                   style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}
                 >
-                  <ChevronLeft size={18} />
-                  Վերադառնալ
+                  <ChevronLeft size={16} />
+                  <span className="sm:hidden">Հետ</span>
+                  <span className="hidden sm:inline">Վերադառնալ</span>
                 </button>
               </div>
             </motion.div>
@@ -1266,11 +1267,12 @@ export default function App() {
                   <div className="flex justify-end mt-4 mb-4">
                     <button
                       onClick={() => setView(previousView)}
-                      className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:bg-white/10"
+                      className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:bg-white/10 shrink-0"
                       style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}
                     >
-                      <ChevronLeft size={18} />
-                      Վերադառնալ
+                      <ChevronLeft size={16} />
+                      <span className="sm:hidden">Հետ</span>
+                      <span className="hidden sm:inline">Վերադառնալ</span>
                     </button>
                   </div>
                 </div>
@@ -1281,7 +1283,7 @@ export default function App() {
           {view === 'admin' && (
             <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {!adminAuth ? (
-                <div className="max-w-sm mx-auto py-10 sm:py-20">
+                <div className="max-w-[220px] sm:max-w-sm mx-auto py-10 sm:py-20">
                   <h2 className="text-[12px] sm:text-2xl font-bold mb-5 sm:mb-6 text-center tracking-widest uppercase">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
                   <form onSubmit={(e) => { e.preventDefault(); handleAdminLogin(adminPassInput); }} autoComplete="off" className="space-y-3 sm:space-y-4">
                     <input 
