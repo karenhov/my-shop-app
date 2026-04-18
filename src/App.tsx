@@ -1164,7 +1164,7 @@ export default function App() {
               {/* Mobile: small back button bottom-right fixed */}
               <button
                 onClick={() => setView('categories')}
-                className="sm:hidden fixed bottom-5 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-[10px] active:scale-95 shadow-lg"
+                className="sm:hidden fixed bottom-24 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-[10px] active:scale-95 shadow-lg"
                 style={{ background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
               >
                 <ChevronLeft size={14} />
@@ -1287,7 +1287,7 @@ export default function App() {
               {/* Mobile: fixed bottom-right back button */}
               <button
                 onClick={() => setView(previousView)}
-                className="sm:hidden fixed bottom-5 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-[10px] active:scale-95 shadow-lg"
+                className="sm:hidden fixed bottom-24 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-[10px] active:scale-95 shadow-lg"
                 style={{ background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
               >
                 <ChevronLeft size={14} />
