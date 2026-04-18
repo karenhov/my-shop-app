@@ -1150,8 +1150,8 @@ export default function App() {
                   ))
                 }
               </div>
-              {/* Desktop: fixed bottom-right back button | Mobile: hidden (nav back is enough) */}
-              <div className="hidden sm:flex justify-end mt-8">
+              {/* Back button — inline for all screen sizes, below the product grid */}
+              <div className="flex justify-end mt-8 mb-4">
                 <button
                   onClick={() => setView('categories')}
                   className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:bg-white/10"
@@ -1161,15 +1161,6 @@ export default function App() {
                   Վերադառնալ
                 </button>
               </div>
-              {/* Mobile: small back button bottom-right fixed */}
-              <button
-                onClick={() => setView('categories')}
-                className="sm:hidden fixed bottom-24 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-[10px] active:scale-95 shadow-lg"
-                style={{ background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
-              >
-                <ChevronLeft size={14} />
-                Հետ
-              </button>
             </motion.div>
           )}
 
@@ -1271,8 +1262,8 @@ export default function App() {
 
                   <ShareCartButtons cartSectionRef={cartSectionRef} cart={cart} total={calculateTotal()} onClearCart={() => setCart([])} />
                   <CheckoutForm onSubmit={handleCheckout} isLoading={isCheckingOut} />
-                  {/* Desktop: back button bottom-right */}
-                  <div className="hidden sm:flex justify-end mt-2">
+                  {/* Back button — inline for all screen sizes, below checkout form */}
+                  <div className="flex justify-end mt-4 mb-4">
                     <button
                       onClick={() => setView(previousView)}
                       className="flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:bg-white/10"
@@ -1284,15 +1275,6 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {/* Mobile: fixed bottom-right back button */}
-              <button
-                onClick={() => setView(previousView)}
-                className="sm:hidden fixed bottom-24 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-[10px] active:scale-95 shadow-lg"
-                style={{ background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
-              >
-                <ChevronLeft size={14} />
-                Հետ
-              </button>
             </motion.div>
           )}
 
