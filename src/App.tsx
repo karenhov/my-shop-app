@@ -27,15 +27,28 @@ import { AIAssistant } from './components/AIAssistant';
 // ---- Safari-safe: preload all images in a DOM node as base64 before screenshot ----
 async function preloadImagesAsBase64(node: HTMLElement): Promise<void> {
   const imgs = Array.from(node.querySelectorAll('img')) as HTMLImageElement[];
+
+  // Safari Fix: SmartImage opacity-0 class problem:
+  // html-to-image captures DOM with current style -- opacity-0 = blank image.
+  // Force all img elements and their parent containers to opacity:1 before capture.
+  imgs.forEach(img => {
+    img.style.opacity = '1';
+    let parent = img.parentElement;
+    for (let i = 0; i < 3; i++) {
+      if (!parent || parent === node) break;
+      parent.style.opacity = '1';
+      parent = parent.parentElement;
+    }
+  });
+
   await Promise.all(
     imgs.map(img => new Promise<void>(resolve => {
       // Skip already-inlined or data: URLs
       if (!img.src || img.src.startsWith('data:')) { resolve(); return; }
 
       const fetchAndInline = (srcUrl: string) => {
-        // Safari Fix: cache-bust URL-ը՝ խուսափելու cached non-CORS response-ից
-        // Safari-ն lock է անում image-ն cache-ում առանց CORS header-ի, և force-cache-ն
-        // վերադարձնում է կոռումպացված response, ինչի հետևանքով canvas-ն blank է լինում։
+        // Safari Fix: cache-bust to avoid cached non-CORS response.
+        // Safari locks image in cache without CORS header, returning corrupted response.
         const bustUrl = (() => {
           try {
             const u = new URL(srcUrl, window.location.href);
@@ -57,16 +70,24 @@ async function preloadImagesAsBase64(node: HTMLElement): Promise<void> {
             reader.onerror = rej;
             reader.readAsDataURL(blob);
           }))
-          .then(dataUrl => { img.src = dataUrl; img.crossOrigin = null; resolve(); })
-          .catch(() => resolve()); // fail gracefully — keep original src
+          .then(dataUrl => {
+            img.src = dataUrl;
+            img.crossOrigin = null;
+            img.style.opacity = '1'; // Safari Fix: keep visible after base64 inline
+            resolve();
+          })
+          .catch(() => {
+            img.style.opacity = '1'; // fail gracefully -- keep visible even on error
+            resolve();
+          });
       };
 
       if (img.complete && img.naturalWidth > 0) {
         fetchAndInline(img.src);
       } else {
         img.onload = () => fetchAndInline(img.src);
-        img.onerror = () => resolve();
-        // Safari Fix: img.src = img.src does NOT re-trigger in Safari — cache-bust instead
+        img.onerror = () => { img.style.opacity = '1'; resolve(); };
+        // Safari Fix: img.src = img.src does NOT re-trigger in Safari -- cache-bust instead
         img.loading = 'eager';
         try {
           const u = new URL(img.src, window.location.href);
@@ -179,7 +200,7 @@ function ShareCartButtons({ cartSectionRef, cart, total, onClearCart }: {
       // Safari fix: inline all images as base64 before html-to-image renders
       await preloadImagesAsBase64(cartSectionRef.current);
       // Safari fix: longer wait — Safari DOM reflow-ն ավելի դանդաղ է
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 400));
 
       // Safari fix: WebkitTextFillColor: transparent-ը canvas-ում invisible է դառնում
       // Ժամանակավոր patch — gradient text-ը plain white դարձնել screenshot-ի ժամանակ
@@ -197,7 +218,7 @@ function ShareCartButtons({ cartSectionRef, cart, total, onClearCart }: {
         backgroundColor: '#09090b',
         pixelRatio: 2,
         skipFonts: false,
-        filter: (node: HTMLElement) => node.dataset?.shareIgnore !== 'true',
+        filter: (node: HTMLElement) => !(node as HTMLElement)?.dataset?.shareIgnore,
       });
 
       // Restore gradient styles after capture
@@ -363,7 +384,7 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
       // Safari fix: inline all images as base64 before html-to-image renders
       await preloadImagesAsBase64(cartSectionRef.current!);
       // Safari fix: longer wait for DOM to reflect inlined srcs
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 400));
 
       // Safari fix: WebkitTextFillColor: transparent — invisible on canvas
       const gradientEls = Array.from(
@@ -380,7 +401,7 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
         backgroundColor: '#09090b',
         pixelRatio: 2,
         skipFonts: false,
-        filter: (node: HTMLElement) => node.dataset?.shareIgnore !== 'true',
+        filter: (node: HTMLElement) => !(node as HTMLElement)?.dataset?.shareIgnore,
       });
 
       // Restore gradient styles after capture
@@ -755,10 +776,10 @@ export default function App() {
         body: JSON.stringify({ password })
       });
       if (response.ok) {
-        setAdminAuth(password);
+        const data = await response.json();
+        setAdminAuth(data.token);
         // sessionStorage — tab փակվելիս ավտոմատ մաքրվում է
-        // localStorage-ի փոխարեն (plain text չի մնում browser-ում)
-        try { sessionStorage.setItem('adminToken', password); } catch {}
+        try { sessionStorage.setItem('adminToken', data.token); } catch {}
         showNotification('Մուտքը հաջողվեց');
       } else {
         alert('Սխալ գաղտնաբառ');
@@ -780,8 +801,8 @@ export default function App() {
     try {
       const response = await fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...productData, password: adminAuth })
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+        body: JSON.stringify(productData)
       });
       if (response.ok) {
         const newProd = await response.json();
@@ -800,8 +821,8 @@ export default function App() {
     try {
       const response = await fetch(`/api/products/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...productData, password: adminAuth })
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+        body: JSON.stringify(productData)
       });
       if (response.ok) {
         setProducts(prev => prev.map(p => p.id === id ? { ...productData, id } : p));
@@ -820,8 +841,7 @@ export default function App() {
     if (!confirm('Ջնջե՞լ ապրանքը:')) return;
     const response = await fetch(`/api/products/${id}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: adminAuth })
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
     });
     if (response.ok) {
       setProducts(prev => prev.filter(p => p.id !== id));
@@ -832,8 +852,8 @@ export default function App() {
   const addPromo = async (promoData: any) => {
     const response = await fetch('/api/promo-codes', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...promoData, password: adminAuth })
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+      body: JSON.stringify(promoData)
     });
     if (response.ok) {
       const newPromo = await response.json();
@@ -845,8 +865,7 @@ export default function App() {
   const deletePromo = async (id: number) => {
     const response = await fetch(`/api/promo-codes/${id}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: adminAuth })
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
     });
     if (response.ok) {
       setPromoCodes(prev => prev.filter(p => p.id !== id));
@@ -857,8 +876,7 @@ export default function App() {
   const fetchOrders = async () => {
     const response = await fetch('/api/orders/list', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: adminAuth })
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
     });
     if (response.ok) {
       const data = await response.json();
@@ -879,8 +897,7 @@ export default function App() {
     if (!confirm('Ջնջե՞լ այս պատվերը:')) return;
     const response = await fetch(`/api/orders/${id}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: adminAuth })
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
     });
     if (response.ok) {
       setOrders(prev => prev.filter(o => o.id !== id));
@@ -894,11 +911,10 @@ export default function App() {
     try {
       const response = await fetch('/api/products/bulk-block', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
         body: JSON.stringify({
           ids: Array.from(selectedProductIds),
           is_blocked: block,
-          password: adminAuth
         })
       });
       if (response.ok) {
@@ -947,18 +963,17 @@ export default function App() {
     try {
       const response = await fetch('/api/admin/change-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          oldPassword: passChangeData.oldPass,
-          newPassword: passChangeData.newPass
-        })
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+        body: JSON.stringify({ newPassword: passChangeData.newPass })
       });
 
       if (response.ok) {
-        setAdminAuth(passChangeData.newPass);
-        try { sessionStorage.setItem('adminToken', passChangeData.newPass); } catch {}
+        // Server-ը sessions.clear() կանի — logout անել և նորից մուտք գործել
+        setAdminAuth(null);
+        try { sessionStorage.removeItem('adminToken'); } catch {}
         setPassChangeData({ oldPass: '', newPass: '', confirmPass: '' });
-        showNotification('Գաղտնաբառը հաջողությամբ փոխվեց');
+        showNotification('Գաղտնաբառը փոխվեց: Մուտք գործեք նորից:');
+        setAdminView('products');
       } else {
         const data = await response.json();
         alert(data.error || 'Գաղտնաբառի փոփոխությունը ձախողվեց');
