@@ -267,6 +267,7 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
   const [userMessage, setUserMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [apiAvailable, setApiAvailable] = useState(true); // API հասանելիության ստատուս
+  const rateLimitUntil = useRef<number>(0); // Rate limit-ի ավարտի timestamp
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -319,7 +320,12 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
 
     // ========== ՓՈՐՁ API-ի հետ աշխատել (server proxy) ==========
     try {
-      // Եթե API-ն նախկինում հասանելի չէր
+      // Rate limit — ստուգել արդյոք 60 վրկ-ն անցել է
+      if (Date.now() < rateLimitUntil.current) {
+        throw new Error("RATE_LIMIT");
+      }
+
+      // Եթե API-ն մշտապես անհասանելի է (auth error և նմանատիպ)
       if (!apiAvailable) {
         throw new Error("API unavailable");
       }
@@ -347,6 +353,9 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       });
 
       if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error("RATE_LIMIT");
+        }
         throw new Error(`Server error: ${response.status}`);
       }
 
@@ -376,17 +385,22 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       // Մաքրել նախորդ անկատար հաղորդագրությունը
       setMessages(prev => prev.filter(m => m.content !== ''));
       
-      // ԿԱՐԵՎՈՐ: Console-ում սխալ ՉԻ ՑՈՒՑԱԴՐՎԵԼՈՒ
-      // error-ը լոգավորվում է միայն development-ում, production-ում ոչ
       if ((import.meta as any).env?.DEV) {
         console.warn('AI Assistant: Falling back to local FAQ', error?.message);
       }
-      
-      // Նշանակել որ API-ն անհասանելի է
-      setApiAvailable(false);
-      
-      // Օգտագործել LOCAL FAQ բազան
-      const localResponse = getLocalFallbackResponse(inputMessage, products);
+
+      let localResponse: string;
+
+      if (error?.message === "RATE_LIMIT") {
+        // Rate limit — 60 վրկ հետո ավտոմատ կվերականգնի, API-ն չ-անջատել
+        rateLimitUntil.current = Date.now() + 60_000;
+        const secondsLeft = 60;
+        localResponse = `⏳ **AI-ի անվճար լիմիտը ժամանակավորապես լրացել է։**\nՄոտ ${secondsLeft} վրկ հետո ավտոմատ կվերականգնի։\n\n` + getLocalFallbackResponse(inputMessage, products);
+      } else {
+        // Այլ error — API-ն անջատել (auth error, server down)
+        setApiAvailable(false);
+        localResponse = getLocalFallbackResponse(inputMessage, products);
+      }
       
       setMessages(prev => [...prev, { 
         role: 'assistant', 
@@ -466,7 +480,7 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
                   <div>
                     <h3 className="font-bold text-sm">AI Օգնական</h3>
                     <p className="text-[10px] opacity-80">
-                      {apiAvailable ? 'Միշտ պատրաստ օգնելու' : '💾 Offline ռեժիմ'}
+                      {Date.now() < rateLimitUntil.current ? '⏳ Վերականգնվում է...' : apiAvailable ? 'Միշտ պատրաստ օգնելու' : '💾 Offline ռեժիմ'}
                     </p>
                   </div>
                 </div>
