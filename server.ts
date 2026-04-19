@@ -741,7 +741,7 @@ async function startServer() {
         return res.status(400).json({ error: "Invalid messages" });
       }
 
-      const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(503).json({ error: "AI service unavailable" });
       }
@@ -758,20 +758,49 @@ async function startServer() {
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.setHeader("Transfer-Encoding", "chunked");
 
-      const stream = await (ai as any).models.generateContentStream({
+      const stream = await ai.models.generateContentStream({
         model: "gemini-2.0-flash",
         contents,
-        systemInstruction,
-        config: { temperature: 0.7, topP: 0.9, topK: 40 },
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+          topP: 0.9,
+          topK: 40,
+        },
       });
 
-      for await (const chunk of stream as any) {
-        const text = (chunk as any).text ?? "";
+      for await (const chunk of stream) {
+        const text = chunk.text ?? "";
         if (text) res.write(text);
       }
       res.end();
     } catch (err: any) {
       if (!res.headersSent) {
+        // 429 — Rate limit (անվճար պլան)
+        const isRateLimit =
+          err?.status === 429 ||
+          err?.code === 429 ||
+          err?.message?.includes("429") ||
+          err?.message?.toLowerCase().includes("quota") ||
+          err?.message?.toLowerCase().includes("rate limit") ||
+          err?.message?.toLowerCase().includes("resource_exhausted");
+
+        if (isRateLimit) {
+          return res.status(429).json({ error: "Rate limit exceeded. Please try again later." });
+        }
+
+        // 401/403 — Սխալ կամ ժամկետանց API key
+        const isAuthError =
+          err?.status === 401 || err?.status === 403 ||
+          err?.message?.includes("401") || err?.message?.includes("403") ||
+          err?.message?.toLowerCase().includes("api key") ||
+          err?.message?.toLowerCase().includes("invalid") ||
+          err?.message?.toLowerCase().includes("permission");
+
+        if (isAuthError) {
+          return res.status(503).json({ error: "AI service unavailable" });
+        }
+
         res.status(500).json({ error: "AI service error" });
       } else {
         res.end();
