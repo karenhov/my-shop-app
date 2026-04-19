@@ -333,9 +333,22 @@ async function startServer() {
   app.post("/api/products", requireAdmin, async (req, res) => {
     try {
       const { name, price, code, description, image, category, min_quantity } = req.body;
+      // Validation
+      const VALID_CATEGORIES = ['sneakers', 'slippers'];
+      if (!name || typeof name !== 'string' || !name.trim() || name.length > 200)
+        return res.status(400).json({ error: "Անվանումը պարտադիր է (մինչ 200 նիշ)" });
+      if (typeof price !== 'number' || isNaN(price) || price <= 0 || price > 100_000_000)
+        return res.status(400).json({ error: "Գինը պետք է լինի դրական թիվ" });
+      if (!code || typeof code !== 'string' || !code.trim() || code.length > 100)
+        return res.status(400).json({ error: "Կոդը պարտադիր է (մինչ 100 նիշ)" });
+      if (!VALID_CATEGORIES.includes(category))
+        return res.status(400).json({ error: "Կատեգորիան սխալ է" });
+      if (!image || typeof image !== 'string' || !image.trim())
+        return res.status(400).json({ error: "Նկարի URL-ը պարտադիր է" });
+      const safeMinQty = Math.max(1, Math.min(10000, parseInt(min_quantity) || 1));
       const result = await query(
         "INSERT INTO products (name, price, code, description, image, category, min_quantity) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-        [name, price, code, description, image, category, min_quantity || 1]
+        [name.trim(), price, code.trim(), description || '', image.trim(), category, safeMinQty]
       );
       const id = isPostgres ? result.rows[0].id : (result as any).lastInsertRowid;
       res.json({ id });
@@ -356,11 +369,23 @@ async function startServer() {
   app.put("/api/products/:id", requireAdmin, async (req, res) => {
     try {
       const { name, price, code, description, image, category, min_quantity } = req.body;
+      const VALID_CATEGORIES = ['sneakers', 'slippers'];
+      if (!name || typeof name !== 'string' || !name.trim() || name.length > 200)
+        return res.status(400).json({ error: "Անվանումը պարտադիր է (մինչ 200 նիշ)" });
+      if (typeof price !== 'number' || isNaN(price) || price <= 0 || price > 100_000_000)
+        return res.status(400).json({ error: "Գինը պետք է լինի դրական թիվ" });
+      if (!code || typeof code !== 'string' || !code.trim() || code.length > 100)
+        return res.status(400).json({ error: "Կոդը պարտադիր է (մինչ 100 նիշ)" });
+      if (!VALID_CATEGORIES.includes(category))
+        return res.status(400).json({ error: "Կատեգորիան սխալ է" });
+      if (!image || typeof image !== 'string' || !image.trim())
+        return res.status(400).json({ error: "Նկարի URL-ը պարտադիր է" });
+      const safeMinQty = Math.max(1, Math.min(10000, parseInt(min_quantity) || 1));
       await query(`
         UPDATE products 
         SET name = $1, price = $2, code = $3, description = $4, image = $5, category = $6, min_quantity = $7
         WHERE id = $8
-      `, [name, price, code, description, image, category, min_quantity || 1, req.params.id]);
+      `, [name.trim(), price, code.trim(), description || '', image.trim(), category, safeMinQty, req.params.id]);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Database error" });
@@ -384,10 +409,31 @@ async function startServer() {
   });
 
   // Promo Codes
-  app.get("/api/promo-codes", async (req, res) => {
+  // Admin — ամբողջ ցուցակ (requireAdmin)
+  app.get("/api/promo-codes", requireAdmin, async (req, res) => {
     try {
       const result = await query("SELECT * FROM promo_codes");
       res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ error: "Database error" });
+    }
+  });
+
+  // Public — ստուգել 1 կոնկրետ կոդ (discount_percent-ը return է անում, ցուցակ չէ)
+  app.post("/api/promo-codes/validate", async (req, res) => {
+    try {
+      const { code } = req.body;
+      if (!code || typeof code !== 'string' || !code.trim()) {
+        return res.status(400).json({ error: "Կոդը պարտադիր է" });
+      }
+      const result = await query(
+        "SELECT discount_percent FROM promo_codes WHERE code = $1",
+        [code.trim()]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Կոդը գոյություն չունի" });
+      }
+      res.json({ discount_percent: result.rows[0].discount_percent });
     } catch (error) {
       res.status(500).json({ error: "Database error" });
     }
@@ -432,7 +478,11 @@ async function startServer() {
       // ✅ Server-side price verification — client-ի price-ն անտեսել, DB-ից կարդալ
       const verifiedItems: { id: number; quantity: number; price: number }[] = [];
       for (const item of items) {
-        const productResult = await query("SELECT price, is_blocked FROM products WHERE id = $1", [item.id]);
+        // Quantity validation
+        if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 9999) {
+          return res.status(400).json({ error: `Անվավեր քանակ ապրանք ${item.id}-ի համար` });
+        }
+        const productResult = await query("SELECT price, is_blocked, min_quantity FROM products WHERE id = $1", [item.id]);
         if (productResult.rows.length === 0) {
           return res.status(400).json({ error: `Product ${item.id} not found` });
         }
@@ -440,6 +490,10 @@ async function startServer() {
         const isBlocked = isPostgres ? product.is_blocked : Boolean(product.is_blocked);
         if (isBlocked) {
           return res.status(400).json({ error: `Product ${item.id} is unavailable` });
+        }
+        const minQty = product.min_quantity || 1;
+        if (item.quantity < minQty) {
+          return res.status(400).json({ error: `Նվազ. քանակ ${minQty} է ապրանք ${item.id}-ի համար` });
         }
         verifiedItems.push({ id: item.id, quantity: item.quantity, price: product.price });
       }
@@ -588,6 +642,84 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Database error" });
+    }
+  });
+
+
+  // AI Assistant endpoint — Gemini API key server-side է, client-ն չի տեσнум
+  const aiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    message: { error: "Չափазанց шат AI request, спасեք:" },
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { trustProxy: false },
+  });
+
+  app.post("/api/ai", aiLimiter, async (req, res) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: "AI service not configured" });
+      }
+
+      const { message, history = [], products = [] } = req.body;
+      if (!message || typeof message !== 'string' || !message.trim() || message.length > 2000) {
+        return res.status(400).json({ error: "Invalid message" });
+      }
+
+      const systemInstruction = `Դուք "EdgSport" խանութի պрофессіонал AI оgnakann eq: 
+Dzer npatakem e tal KONKRET ev JSHGRIT pataskanner kayjhi ogtagorcman veraberjal:
+
+KAYJHI NPATAKE:
+Kayjhe stexcvac e nra hamar, orpeszi dzer koxmic ardeny isx havanacd tesakanineры linen patarasт нахораrog:
+
+KAREVОR ТЕGHЕКOUTJUNNER KAYJHI MАSIN:
+1. Navigacia: Glxavor ejum semblox "Дitеl теsakanin" kojakы, duk ktesnеq "Sportayin Kosikner" ev "Hoghataper" bajinnerы:
+2. Apranqi entрoutjun: Apranqy entrel hamar petq e semblel dra vra araka "Uxarаkel zambjux" kojaky:
+3. Zambjuxi bajin: Гtnvum e kayjhi amenaverevum ej aji ankjunum:
+4. Kisvеl Zambjuxov: Viber, WhatsApp ev Telegram kojakknerы hajtnjum en zambjuxum miajn ajna depqum, yerb ajtex arka e arnavasт mek apranq:
+5. Patverи hastatel: Lracrek dasterы, semble "НАSTATEL PATVERY" ev zangaraharet haceatiroji het:
+6. Promo kod: Нахатеsvac e zelchi hamar, petq e vertcel kayjhi adminnic:
+
+Ahanc apranqner kayjhic: ${JSON.stringify(products.slice(0, 10))}
+
+Khoseq miajn hajerenovm (Armeniaan): Egheq shad hshtаk:`;
+
+      // Build contents for Gemini
+      const contents: any[] = (history as any[])
+        .filter((m: any) => m.content)
+        .map((m: any) => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content }]
+        }));
+      contents.push({ role: 'user', parts: [{ text: message.trim() }] });
+
+      const geminiRes = await fetch(
+        \`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=\${apiKey}\`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents,
+            generationConfig: { temperature: 0.7, topP: 0.9, maxOutputTokens: 1024 }
+          })
+        }
+      );
+
+      if (!geminiRes.ok) {
+        const errText = await geminiRes.text();
+        console.error("Gemini API error:", errText);
+        return res.status(502).json({ error: "AI service error" });
+      }
+
+      const geminiData = await geminiRes.json() as any;
+      const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      res.json({ text });
+    } catch (error) {
+      console.error("AI endpoint error:", error);
+      res.status(500).json({ error: "AI service error" });
     }
   });
 
