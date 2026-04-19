@@ -302,6 +302,16 @@ async function startServer() {
     validate: { trustProxy: false },
   });
 
+  // Order spam protection — max 5 orders per IP per minute
+  const orderLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 5,
+    message: { error: "Չափազանց շատ պատվեր, խնդրում ենք մի փոքր սպասել:" },
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { trustProxy: false },
+  });
+
   // Admin session middleware — x-admin-token header-ը ստուգում է
   const requireAdmin = (req: any, res: any, next: any) => {
     const token = req.headers['x-admin-token'] as string;
@@ -417,7 +427,7 @@ async function startServer() {
   });
 
   // Orders
-  app.post("/api/orders", async (req, res) => {
+  app.post("/api/orders", orderLimiter, async (req, res) => {
     try {
       const { customer_name, customer_phone, customer_address, items } = req.body;
 
