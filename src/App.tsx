@@ -31,12 +31,16 @@ async function preloadImagesAsBase64(node: HTMLElement): Promise<void> {
   // Safari Fix: SmartImage opacity-0 class problem:
   // html-to-image captures DOM with current style -- opacity-0 = blank image.
   // Force all img elements and their parent containers to opacity:1 before capture.
+  // Use setProperty with 'important' to override Tailwind opacity-0 class,
+  // and also remove the class directly. Chrome ignores this harmlessly.
   imgs.forEach(img => {
-    img.style.opacity = '1';
+    img.style.setProperty('opacity', '1', 'important');
+    img.classList.remove('opacity-0');
     let parent = img.parentElement;
     for (let i = 0; i < 3; i++) {
       if (!parent || parent === node) break;
-      parent.style.opacity = '1';
+      parent.style.setProperty('opacity', '1', 'important');
+      parent.classList.remove('opacity-0');
       parent = parent.parentElement;
     }
   });
@@ -73,11 +77,13 @@ async function preloadImagesAsBase64(node: HTMLElement): Promise<void> {
           .then(dataUrl => {
             img.src = dataUrl;
             img.crossOrigin = null;
-            img.style.opacity = '1'; // Safari Fix: keep visible after base64 inline
+            img.style.setProperty('opacity', '1', 'important'); // Safari Fix: keep visible after base64 inline
+            img.classList.remove('opacity-0');
             resolve();
           })
           .catch(() => {
-            img.style.opacity = '1'; // fail gracefully -- keep visible even on error
+            img.style.setProperty('opacity', '1', 'important'); // fail gracefully -- keep visible even on error
+            img.classList.remove('opacity-0');
             resolve();
           });
       };
@@ -86,7 +92,7 @@ async function preloadImagesAsBase64(node: HTMLElement): Promise<void> {
         fetchAndInline(img.src);
       } else {
         img.onload = () => fetchAndInline(img.src);
-        img.onerror = () => { img.style.opacity = '1'; resolve(); };
+        img.onerror = () => { img.style.setProperty('opacity', '1', 'important'); img.classList.remove('opacity-0'); resolve(); };
         // Safari Fix: img.src = img.src does NOT re-trigger in Safari -- cache-bust instead
         img.loading = 'eager';
         try {
@@ -199,8 +205,10 @@ function ShareCartButtons({ cartSectionRef, cart, total, onClearCart }: {
     try {
       // Safari fix: inline all images as base64 before html-to-image renders
       await preloadImagesAsBase64(cartSectionRef.current);
-      // Safari fix: longer wait — Safari DOM reflow-ն ավելի դանդաղ է
-      await new Promise(r => setTimeout(r, 400));
+      // Safari fix: wait for DOM to fully reflect inlined base64 srcs and opacity changes.
+      // iOS Safari needs more time than Chrome for reflow after src/style mutations.
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      await new Promise(r => setTimeout(r, isSafari ? 600 : 100));
 
       // Safari fix: WebkitTextFillColor: transparent-ը canvas-ում invisible է դառնում
       // Ժամանակավոր patch — gradient text-ը plain white դարձնել screenshot-ի ժամանակ
@@ -383,8 +391,9 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
       setStatusMsg('Ստեղծվում...');
       // Safari fix: inline all images as base64 before html-to-image renders
       await preloadImagesAsBase64(cartSectionRef.current!);
-      // Safari fix: longer wait for DOM to reflect inlined srcs
-      await new Promise(r => setTimeout(r, 400));
+      // Safari fix: wait for DOM to fully reflect inlined base64 srcs and opacity changes.
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      await new Promise(r => setTimeout(r, isSafari ? 600 : 100));
 
       // Safari fix: WebkitTextFillColor: transparent — invisible on canvas
       const gradientEls = Array.from(
