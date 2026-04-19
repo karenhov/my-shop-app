@@ -267,9 +267,23 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
   const [userMessage, setUserMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [apiAvailable, setApiAvailable] = useState(true); // API հասանելիության ստատուս
+  const [isRateLimited, setIsRateLimited] = useState(false); // Rate limit ստատուս
   const rateLimitUntil = useRef<number>(0); // Rate limit-ի ավարտի timestamp
+  const rateLimitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Rate limit-ի ավտոմատ վերականգնում
+  const startRateLimitTimer = (waitMs = 60_000) => {
+    if (rateLimitTimer.current) return; // Արդեն աշխատում է
+    rateLimitUntil.current = Date.now() + waitMs;
+    setIsRateLimited(true);
+    rateLimitTimer.current = setTimeout(() => {
+      setIsRateLimited(false);
+      rateLimitUntil.current = 0;
+      rateLimitTimer.current = null;
+    }, waitMs);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -290,7 +304,10 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
   }, []);
 
   useEffect(() => {
-    return () => { abortRef.current?.abort(); };
+    return () => {
+      abortRef.current?.abort();
+      if (rateLimitTimer.current) clearTimeout(rateLimitTimer.current);
+    };
   }, []);
 
   const handleToggle = () => {
@@ -321,7 +338,7 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
     // ========== ՓՈՐՁ API-ի հետ աշխատել (server proxy) ==========
     try {
       // Rate limit — ստուգել արդյոք 60 վրկ-ն անցել է
-      if (Date.now() < rateLimitUntil.current) {
+      if (isRateLimited) {
         throw new Error("RATE_LIMIT");
       }
 
@@ -354,7 +371,9 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
 
       if (!response.ok) {
         if (response.status === 429) {
-          throw new Error("RATE_LIMIT");
+          const data = await response.json().catch(() => ({}));
+          const retryAfter = data.retryAfter ?? 60;
+          throw Object.assign(new Error("RATE_LIMIT"), { retryAfter });
         }
         throw new Error(`Server error: ${response.status}`);
       }
@@ -392,11 +411,9 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       let localResponse: string;
 
       if (error?.message === "RATE_LIMIT") {
-        // Timer-ը set անել միայն առաջին անգամ — հաջորդ հարցերի ժամանակ չ-reset անել
-        if (rateLimitUntil.current < Date.now()) {
-          rateLimitUntil.current = Date.now() + 60_000;
-        }
-        const secondsLeft = Math.ceil((rateLimitUntil.current - Date.now()) / 1000);
+        const waitMs = ((error?.retryAfter ?? 60) + 2) * 1000; // +2 վրկ buffer
+        startRateLimitTimer(waitMs);
+        const secondsLeft = Math.ceil(waitMs / 1000);
         localResponse = `⏳ **AI-ի անվճար լիմիտը ժամանակավորապես լրացել է։**\nՄոտ ${secondsLeft} վրկ հետո ավտոմատ կվերականգնի։\n\n` + getLocalFallbackResponse(inputMessage, products);
       } else {
         // Այլ error — API-ն անջատել (auth error, server down)
@@ -482,7 +499,7 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
                   <div>
                     <h3 className="font-bold text-sm">AI Օգնական</h3>
                     <p className="text-[10px] opacity-80">
-                      {Date.now() < rateLimitUntil.current ? '⏳ Վերականգնվում է...' : apiAvailable ? 'Միշտ պատրաստ օգնելու' : '💾 Offline ռեժիմ'}
+                      {isRateLimited ? '⏳ Վերականգնվում է...' : apiAvailable ? 'Միշտ պատրաստ օգնելու' : '💾 Offline ռեժիմ'}
                     </p>
                   </div>
                 </div>
