@@ -786,7 +786,11 @@ async function startServer() {
           err?.message?.toLowerCase().includes("resource_exhausted");
 
         if (isRateLimit) {
-          return res.status(429).json({ error: "Rate limit exceeded. Please try again later." });
+          // Gemini-ն կարող է retryDelay տալ — օգտագործել եթե կա, հակառակ դեպքում 60 վրկ
+          const retryAfter = err?.errorDetails?.[0]?.retryDelay
+            ? parseInt(err.errorDetails[0].retryDelay)
+            : (err?.headers?.['retry-after'] ? parseInt(err.headers['retry-after']) : 60);
+          return res.status(429).json({ error: "Rate limit exceeded.", retryAfter });
         }
 
         // 401/403 — Սխալ կամ ժամկետանց API key
