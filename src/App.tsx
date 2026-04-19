@@ -672,6 +672,11 @@ export default function App() {
       })
       .catch(err => console.error("Failed to fetch products:", err));
     
+    fetch('/api/promo-codes')
+      .then(res => res.json())
+      .then(data => Array.isArray(data) && setPromoCodes(data))
+      .catch(err => console.error("Failed to fetch promo codes:", err));
+
     fetch('/api/db-status')
       .then(res => res.json())
       .then(setDbStatus)
@@ -884,12 +889,6 @@ export default function App() {
   useEffect(() => {
     if (adminAuth && adminView === 'orders') {
       fetchOrders();
-    }
-    if (adminAuth && adminView === 'promo') {
-      fetch('/api/promo-codes', {
-        headers: { 'x-admin-token': adminAuth }
-      }).then(r => r.json()).then(data => Array.isArray(data) && setPromoCodes(data))
-        .catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminAuth, adminView]);
@@ -1258,42 +1257,18 @@ export default function App() {
                         onChange={(e) => setPromoInput(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
-                            const code = promoInput.trim();
-                            if (!code) return;
-                            fetch('/api/promo-codes/validate', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ code })
-                            }).then(r => r.json()).then(data => {
-                              if (data.discount_percent) {
-                                setAppliedPromo({ id: 0, code, discount_percent: data.discount_percent });
-                                setPromoInput('');
-                                showNotification('Պրոմոկոդը կիրառվեց');
-                              } else {
-                                alert('Սխալ պրոմոկոդ');
-                              }
-                            }).catch(() => alert('Սերվերի սխալ'));
+                            const found = promoCodes.find(p => p.code === promoInput.trim());
+                            if (found) { setAppliedPromo(found); setPromoInput(''); showNotification('Պրոմոկոդը կիրառվեց'); }
+                            else alert('Սխալ պրոմոկոդ');
                           }
                         }}
                         className="flex-1 bg-black border border-white/10 rounded-xl px-3 sm:px-4 py-2 outline-none focus:border-blue-500 transition-colors text-sm sm:text-base"
                       />
                       <button
                         onClick={() => {
-                          const code = promoInput.trim();
-                          if (!code) return;
-                          fetch('/api/promo-codes/validate', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ code })
-                          }).then(r => r.json()).then(data => {
-                            if (data.discount_percent) {
-                              setAppliedPromo({ id: 0, code, discount_percent: data.discount_percent });
-                              setPromoInput('');
-                              showNotification('Պրոմոկոդը կիրառվեց');
-                            } else {
-                              alert('Սխալ պրոմոկոդ');
-                            }
-                          }).catch(() => alert('Սերվերի սխալ'));
+                          const found = promoCodes.find(p => p.code === promoInput.trim());
+                          if (found) { setAppliedPromo(found); setPromoInput(''); showNotification('Պրոմոկոդը կիրառվեց'); }
+                          else alert('Սխալ պրոմոկոդ');
                         }}
                         className="px-3 sm:px-4 py-2 bg-blue-600 rounded-xl font-bold text-xs sm:text-sm hover:bg-blue-500 transition-all"
                       >ԿԻՐԱՌԵԼ</button>
