@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessagesSquare, X, Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import DOMPurify from 'dompurify';
 
@@ -318,16 +317,12 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
     }
 
-    // ========== ՓՈՐՁ API-ի հետ աշխատել ==========
+    // ========== ՓՈՐՁ API-ի հետ աշխատել (server proxy) ==========
     try {
-      const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (process as any).env?.GEMINI_API_KEY;
-      
-      // Եթե API key չկա կամ API-ն նախկինում հասանելի չէր
-      if (!apiKey || !apiAvailable) {
+      // Եթե API-ն նախկինում հասանելի չէր
+      if (!apiAvailable) {
         throw new Error("API unavailable");
       }
-
-      const ai = new GoogleGenAI({ apiKey });
 
       const productData = products.slice(0, 10).map(p => ({
         name: p.name,
@@ -336,55 +331,35 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
         category: p.category
       }));
 
-      const systemInstruction = `Դուք "EdgSport" խանութի պրոֆեսիոնալ AI օգնականն եք: 
-Ձեր նպատակն է տալ ԿՈՆԿՐԵՏ և ՃՇԳՐԻՏ պատասխաններ կայքի օգտագործման վերաբերյալ:
+      const systemInstruction = `Դուք "EdgSport" խանութի պրոֆեսիոնալ AI օգնականն եք: \nՁեր նպատակն է տալ ԿՈՆԿՐԵՏ և ՃՇԳՐԻՏ պատասխաններ կայքի օգտագործման վերաբերյալ:\n\nԿԱՅՔԻ ՆՊԱՏԱԿԸ:\nԿայքը ստեղծված է նրա համար, որպեսզի ձեր կողմից արդեն իսկ հավանած տեսականիները լինեն պատրաստ նախօրոք:\n\nԿԱՌՈՒՑՎԱԾՔ:\n1. **Նավիգացիա**: Գլխավոր էջում սեղմելով **"Դիտել տեսականին"** կոճակը կտեսնեք **"Սպորտային կոշիկներ"** և **"Հողաթափեր"** բաժինները:\n2. **Ապրանքի ընտրություն**: Սեղմեք **"Ուղղարկել զամբյուղ"** կոճակը:\n3. **Զամբյուղ**: Կայքի ամենավերևի **աջ անկյունում**:\n4. **Կիսվել**: Viber, WhatsApp, Telegram կոճակներ՝ առնվազն մեկ ապրանք ունենալու դեպքում:\n5. **Պատվեր**: Լրացրեք դաշտերը, սեղմեք **"ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐԸ"**:\n6. **Պրոմոկոդ**: Ադմինից ստանալ:\n\nԱհա որոշ ապրանքներ կայքից:\n\${JSON.stringify(productData)}\n\nԽոսեք միայն հայերենով: Եղեք շատ հստակ:`;
 
-ԿԱՅՔԻ ՆՊԱՏԱԿԸ:
-Կայքը ստեղծված է նրա համար, որպեսզի ձեր կողմից արդեն իսկ հավանած տեսականիները լինեն պատրաստ նախօրոք:
-
-ԿԱՐԵՎՈՐ ՏԵՂԵԿՈՒԹՅՈՒՆՆԵՐ ԿԱՅՔԻ ՄԱՍԻՆ:
-1. **Նավիգացիա**: Գլխավոր էջում սեղմելով **"Դիտել տեսականին"** կոճակը, դուք կտեսնեք **"Սպորտային կոշիկներ"** և **"Հողաթափեր"** բաժինները: Սեղմելով դրանցից մեկի վրա՝ կբացվի համապատասխան տեսականին:
-2. **Ապրանքի ընտրություն**: Ապրանքը ընտրելու համար պետք է սեղմել դրա վրա առկա **"Ուղղարկել զամբյուղ"** կոճակը:
-3. **Զամբյուղի բաժին**: Գտնվում է կայքի ամենավերևի էջի **աջ անկյունում**: Այն սեղմելով կհայտնվեք զամբյուղ բաժնում, որտեղ կարող եք դիտել ընտրված ապրանքները, ավելացնել կամ պակասեցնել քանակները, կամ ջնջել ապրանքը:
-4. **Կիսվել Զամբյուղով**: **Viber**, **WhatsApp** և **Telegram** կոճակները հայտնվում են զամբյուղում միայն այն դեպքում, երբ այնտեղ առկա է **առնվազն մեկ ապրանք**: Դրանք թույլ են տալիս ուղարկել ձեր զամբյուղի տեսականին (նկարներով և քանակներով) համապատասխան հասցեատիրոջը: Սխալի դեպքում փորձեք նորից կամ կապնվեք ադմինի հետ:
-5. **Պատվերի հաստատում**: Պատվերը ձևակերպելու համար լրացրեք դաշտերը, սեղմեք **"ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐԸ"** և զանգահարեք հասցեատիրոջը: Սխալ պատվերի դեպքում տեղյակ պահեք կայքի տիրոջը կամ ադմինին:
-6. **Նկարների դիտում**: Նկարը ավելի մեծ դիտելու համար **սեղմած պահեք նկարի վրա**, և կհայտնվեն համապատասխան տարբերակներ այն մեծացնելու համար: Եթե նկարները լիարժեք չեն երևում, թարմացրեք էջը կամ սպասեք:
-7. **Պրոմոկոդ**: Նախատեսված է զեղչի համար: Այն պետք է վերցնել կայքի **ադմինից**:
-8. **Զամբյուղի պահպանում**: Ձեր ընտրված ապրանքները զամբյուղում երևում են այնքան ժամանակ, քանի դեռ չեք կատարել պատվեր կամ չեք կիսվել դրանցով սոց. հավելվածների միջոցով:
-9. **Բջջային տարբերակ (Mobile)**: Կայքի ներքևի մասում կա նավիգացիոն տող (Bottom Nav) հետևյալ կոճակներով՝ **ԳԼԽԱՎՈՐ**, **ԲԱԺԻՆՆԵՐ**, **ԶԱＭՅՈՒՂ** և **ԱԴՄԻՆ**:
-
-ԿԱՆՈՆՆԵՐ:
-- Պատասխանեք ՄԻԱՅՆ կայքին և ապրանքներին վերաբերող հարցերին:
-- Յուրաքանչյուր պատասխան պետք է լինի կոնկրետ: Օրինակ՝ "Սեղմեք ներքևի նավիգացիոն տողի կենտրոնում գտնվող ԶԱՄＢՅՈՒՂ կոճակը":
-- Եթե հարցը վերաբերում է ապրանքին, նշեք դրա գինը և կոդը:
-- Օգտագործեք Markdown: Կարևոր բառերը դարձրեք **bold**:
-
-Ահա որոշ ապրանքներ կայքից:
-${JSON.stringify(productData)}
-
-Խոսեք միայն հայերենով: Եղեք շատ հստակ և մի տվեք ընդհանուր պատասխաններ:`;
-
-      const contents: any[] = messages.map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
-
-      contents.push({ role: 'user', parts: [{ text: inputMessage }] });
+      const historyMessages = [...messages, { role: 'user', content: inputMessage }];
 
       // AbortController — stream cancel
       abortRef.current = new AbortController();
-      const stream = await (ai as any).models.generateContentStream({
-        model: 'gemini-1.5-flash',
-        contents,
-        systemInstruction,
-        config: { temperature: 0.7, topP: 0.9, topK: 40 }
+
+      // API key-ը server-side է — browser-ում տեսանելի չէ
+      const response = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: abortRef.current.signal,
+        body: JSON.stringify({ messages: historyMessages, systemInstruction }),
       });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
       let fullText = '';
       setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
-      for await (const chunk of (stream as any)) {
-        const text = (chunk as any).text ?? '';
-        fullText += text;
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunkText = decoder.decode(value, { stream: true });
+        fullText += chunkText;
         setMessages(prev => {
           const updated = [...prev];
           updated[updated.length - 1] = { role: 'assistant', content: fullText };
