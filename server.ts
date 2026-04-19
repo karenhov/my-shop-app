@@ -9,6 +9,7 @@ import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import { rateLimit } from 'express-rate-limit';
 import helmet from "helmet";
+import cors from "cors";
 
 dotenv.config();
 
@@ -277,6 +278,13 @@ async function startServer() {
     contentSecurityPolicy: false, // Միացրած է, եթե կկարգավորվի, բայց այս պահին false՝ նկարների համար
     crossOriginEmbedderPolicy: false,
   }));
+
+  // CORS — թույլ տալ request-ներ միայն սեփական domain-ից
+  app.use(cors({
+    origin: process.env.FRONTEND_URL || true,
+    credentials: true,
+  }));
+
   // Upload endpoint-ի համար մեծ limit, մնացածի համար՝ փոքր (DoS պաշտպանություն)
   app.use('/api/upload-cart-image', express.json({ limit: '50mb' }));
   app.use(express.json({ limit: '1mb' }));
@@ -524,19 +532,52 @@ async function startServer() {
   });
 
   // POST /api/orders/list — fetch orders (requireAdmin middleware ստուգում է token-ը)
+  // N+1 fix: մի JOIN query-ով բեռնում ենք բոլոր orders + items միանգամից
   app.post("/api/orders/list", requireAdmin, async (req, res) => {
     try {
-      const ordersResult = await query("SELECT * FROM orders ORDER BY created_at DESC");
-      const ordersWithItems = await Promise.all(ordersResult.rows.map(async (order: any) => {
-        const itemsResult = await query(`
-          SELECT oi.*, p.name, p.image, p.code 
-          FROM order_items oi 
-          JOIN products p ON oi.product_id = p.id 
-          WHERE oi.order_id = $1
-        `, [order.id]);
-        return { ...order, items: itemsResult.rows };
-      }));
-      res.json(ordersWithItems);
+      const result = await query(`
+        SELECT
+          o.id, o.customer_name, o.customer_phone, o.customer_address,
+          o.total_price, o.created_at,
+          oi.id        AS item_id,
+          oi.quantity,
+          oi.price_at_time,
+          p.name       AS item_name,
+          p.image      AS item_image,
+          p.code       AS item_code
+        FROM orders o
+        LEFT JOIN order_items oi ON oi.order_id = o.id
+        LEFT JOIN products p     ON p.id = oi.product_id
+        ORDER BY o.created_at DESC
+      `);
+
+      // Group rows ըստ order id-ի
+      const ordersMap = new Map<number, any>();
+      for (const row of result.rows) {
+        if (!ordersMap.has(row.id)) {
+          ordersMap.set(row.id, {
+            id:               row.id,
+            customer_name:    row.customer_name,
+            customer_phone:   row.customer_phone,
+            customer_address: row.customer_address,
+            total_price:      row.total_price,
+            created_at:       row.created_at,
+            items:            [],
+          });
+        }
+        if (row.item_id) {
+          ordersMap.get(row.id).items.push({
+            id:             row.item_id,
+            quantity:       row.quantity,
+            price_at_time:  row.price_at_time,
+            name:           row.item_name,
+            image:          row.item_image,
+            code:           row.item_code,
+          });
+        }
+      }
+
+      res.json(Array.from(ordersMap.values()));
     } catch (error) {
       res.status(500).json({ error: "Database error" });
     }
