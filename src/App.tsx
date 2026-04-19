@@ -632,6 +632,7 @@ export default function App() {
   });
   const [adminPassInput, setAdminPassInput] = useState('');
   const [promoInput, setPromoInput] = useState('');
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [adminView, setAdminView] = useState<'products' | 'promo' | 'orders' | 'settings'>('products');
   const [orders, setOrders] = useState<Order[]>([]);
@@ -680,11 +681,6 @@ export default function App() {
         }
       })
       .catch(err => console.error("Failed to fetch products:", err));
-    
-    fetch('/api/promo-codes')
-      .then(res => res.json())
-      .then(data => Array.isArray(data) && setPromoCodes(data))
-      .catch(err => console.error("Failed to fetch promo codes:", err));
 
     fetch('/api/db-status')
       .then(res => res.json())
@@ -882,6 +878,31 @@ export default function App() {
     }
   };
 
+  // Validates a single promo code via server — does NOT expose all codes
+  const validatePromo = async (code: string) => {
+    if (!code.trim() || isValidatingPromo) return;
+    setIsValidatingPromo(true);
+    try {
+      const response = await fetch('/api/validate-promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.trim() }),
+      });
+      const data = await response.json();
+      if (data.valid) {
+        setAppliedPromo({ id: data.id, code: code.trim(), discount_percent: data.discount_percent });
+        setPromoInput('');
+        showNotification('Պրոմոկոդը կիրառվեց');
+      } else {
+        alert('Սխալ պրոմոկոդ');
+      }
+    } catch {
+      alert('Սխալ պրոմոկոդ');
+    } finally {
+      setIsValidatingPromo(false);
+    }
+  };
+
   const fetchOrders = async () => {
     const response = await fetch('/api/orders/list', {
       method: 'POST',
@@ -898,6 +919,12 @@ export default function App() {
   useEffect(() => {
     if (adminAuth && adminView === 'orders') {
       fetchOrders();
+    }
+    if (adminAuth && adminView === 'promo') {
+      fetch('/api/promo-codes', { headers: { 'x-admin-token': adminAuth } })
+        .then(res => res.json())
+        .then(data => Array.isArray(data) && setPromoCodes(data))
+        .catch(err => console.error('Failed to fetch promo codes:', err));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminAuth, adminView]);
@@ -1265,22 +1292,15 @@ export default function App() {
                         value={promoInput}
                         onChange={(e) => setPromoInput(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            const found = promoCodes.find(p => p.code === promoInput.trim());
-                            if (found) { setAppliedPromo(found); setPromoInput(''); showNotification('Պրոմոկոդը կիրառվեց'); }
-                            else alert('Սխալ պրոմոկոդ');
-                          }
+                          if (e.key === 'Enter') validatePromo(promoInput);
                         }}
                         className="flex-1 bg-black border border-white/10 rounded-xl px-3 sm:px-4 py-2 outline-none focus:border-blue-500 transition-colors text-sm sm:text-base"
                       />
                       <button
-                        onClick={() => {
-                          const found = promoCodes.find(p => p.code === promoInput.trim());
-                          if (found) { setAppliedPromo(found); setPromoInput(''); showNotification('Պրոմոկոդը կիրառվեց'); }
-                          else alert('Սխալ պրոմոկոդ');
-                        }}
-                        className="px-3 sm:px-4 py-2 bg-blue-600 rounded-xl font-bold text-xs sm:text-sm hover:bg-blue-500 transition-all"
-                      >ԿԻՐԱՌԵԼ</button>
+                        onClick={() => validatePromo(promoInput)}
+                        disabled={isValidatingPromo}
+                        className="px-3 sm:px-4 py-2 bg-blue-600 rounded-xl font-bold text-xs sm:text-sm hover:bg-blue-500 transition-all disabled:opacity-50"
+                      >{isValidatingPromo ? '...' : 'ԿԻՐԱՌԵԼ'}</button>
                     </div>
                     {appliedPromo && <div className="flex justify-between text-xs sm:text-sm text-orange-400"><span>Զեղչ ({appliedPromo.discount_percent}%)</span><button onClick={() => setAppliedPromo(null)} className="underline hover:text-orange-300">Ջնջել</button></div>}
                   </div>
