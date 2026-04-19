@@ -394,10 +394,32 @@ async function startServer() {
   });
 
   // Promo Codes
-  app.get("/api/promo-codes", async (req, res) => {
+  // Admin only — returns all codes with IDs (for admin panel)
+  app.get("/api/promo-codes", requireAdmin, async (req, res) => {
     try {
       const result = await query("SELECT * FROM promo_codes");
       res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ error: "Database error" });
+    }
+  });
+
+  // Public — validate a single promo code without exposing all codes
+  app.post("/api/validate-promo", async (req, res) => {
+    try {
+      const { code } = req.body;
+      if (!code || typeof code !== "string") {
+        return res.status(400).json({ valid: false });
+      }
+      const result = await query(
+        "SELECT id, discount_percent FROM promo_codes WHERE code = $1",
+        [code.trim()]
+      );
+      if (result.rows.length === 0) {
+        return res.json({ valid: false });
+      }
+      const row = result.rows[0];
+      res.json({ valid: true, id: row.id, discount_percent: row.discount_percent });
     } catch (error) {
       res.status(500).json({ error: "Database error" });
     }
@@ -666,6 +688,53 @@ async function startServer() {
     } catch (err) {
       console.error("Image upload error:", err);
       res.status(500).json({ error: "Failed to upload image" });
+    }
+  });
+
+
+  // AI Chat — proxies Gemini API call server-side so API key stays secret
+  app.post("/api/ai-chat", async (req, res) => {
+    try {
+      const { messages, systemInstruction } = req.body;
+      if (!Array.isArray(messages)) {
+        return res.status(400).json({ error: "Invalid messages" });
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: "AI service unavailable" });
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+
+      const contents = messages.map((m: { role: string; content: string }) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+
+      // Set response to stream
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader("Transfer-Encoding", "chunked");
+
+      const stream = await (ai as any).models.generateContentStream({
+        model: "gemini-2.0-flash",
+        contents,
+        systemInstruction,
+        config: { temperature: 0.7, topP: 0.9, topK: 40 },
+      });
+
+      for await (const chunk of stream as any) {
+        const text = (chunk as any).text ?? "";
+        if (text) res.write(text);
+      }
+      res.end();
+    } catch (err: any) {
+      if (!res.headersSent) {
+        res.status(500).json({ error: "AI service error" });
+      } else {
+        res.end();
+      }
     }
   });
 
