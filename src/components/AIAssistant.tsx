@@ -392,9 +392,11 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       let localResponse: string;
 
       if (error?.message === "RATE_LIMIT") {
-        // Rate limit — 60 վրկ հետո ավտոմատ կվերականգնի, API-ն չ-անջատել
-        rateLimitUntil.current = Date.now() + 60_000;
-        const secondsLeft = 60;
+        // Timer-ը set անել միայն առաջին անգամ — հաջորդ հարցերի ժամանակ չ-reset անել
+        if (rateLimitUntil.current < Date.now()) {
+          rateLimitUntil.current = Date.now() + 60_000;
+        }
+        const secondsLeft = Math.ceil((rateLimitUntil.current - Date.now()) / 1000);
         localResponse = `⏳ **AI-ի անվճար լիմիտը ժամանակավորապես լրացել է։**\nՄոտ ${secondsLeft} վրկ հետո ավտոմատ կվերականգնի։\n\n` + getLocalFallbackResponse(inputMessage, products);
       } else {
         // Այլ error — API-ն անջատել (auth error, server down)
