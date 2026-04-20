@@ -312,7 +312,7 @@ async function startServer() {
   // Cookie parser middleware — HttpOnly cookie-ների կարդալու համար
   app.use(cookieParser());
 
-  // FIX 3: CORS — միայն APP_URL-ից կամ localhost dev-ի համար
+  // FIX 3: CORS — APP_URL սահմանված է՝ թույլ տալ միայն այն, հակառակ դեպքում same-origin
   const allowedOrigins = [
     appOrigin,
     'http://localhost:3000',
@@ -321,8 +321,10 @@ async function startServer() {
 
   app.use(cors({
     origin: (origin, callback) => {
-      // curl/server-to-server request-ներ (origin չկա) — թույլ տալ
+      // Same-origin request-ներ (origin չկա կամ server-to-server) — միշտ թույլ տալ
       if (!origin) return callback(null, true);
+      // APP_URL սահմանված չէ — Render SPA mode, frontend և backend նույն domain-ում են
+      if (allowedOrigins.length === 2) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error('Not allowed by CORS'));
     },
