@@ -291,11 +291,10 @@ async function startServer() {
         // API կանչեր — Gemini, Cloudinary, Google Fonts, ինքը server
         connectSrc: [
           "'self'",
-          "https://api.cloudinary.com",
-          "https://generativelanguage.googleapis.com",
-          "https://fonts.googleapis.com",
-          "https://fonts.gstatic.com",
-          // Render-ի WebSocket HMR dev-ի համար (production-ում անտեսվում է)
+          // https: — թույլ է տալիս fetch() ցանկացած HTTPS հասցեից
+          // անհրաժեշտ է html-to-image-ի preloadImagesAsBase64()-ի համար
+          // (նկարները կարող են լինել ibb.co, postimg.cc, cloudinary.com և այլ domain-ներից)
+          "https:",
           "wss:",
           "ws:",
         ],
