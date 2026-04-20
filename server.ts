@@ -276,20 +276,34 @@ async function startServer() {
   const app = express();
   app.set('trust proxy', 1); // Trust the first proxy (Cloud Run/Nginx)
 
-  // FIX 1: CSP կարգավորված — կոնկրետ թույլատրված աղբյուրներ
+  // FIX 1: CSP կարգավորված
   const appOrigin = process.env.APP_URL || '';
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
+        // React + Vite runtime-ի համար unsafe-inline/eval անհրաժեշտ է
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+        // Բոլոր HTTPS նկարներ, data URIs, blob (html-to-image-ի համար)
         imgSrc: ["'self'", "data:", "blob:", "https:"],
-        connectSrc: ["'self'", "https://api.cloudinary.com", "https://generativelanguage.googleapis.com"],
+        // API կանչեր — Gemini, Cloudinary, Google Fonts, ինքը server
+        connectSrc: [
+          "'self'",
+          "https://api.cloudinary.com",
+          "https://generativelanguage.googleapis.com",
+          "https://fonts.googleapis.com",
+          "https://fonts.gstatic.com",
+          // Render-ի WebSocket HMR dev-ի համար (production-ում անտեսվում է)
+          "wss:",
+          "ws:",
+        ],
+        // Worker-ներ blob URL-ներ (html-to-image)
+        workerSrc: ["'self'", "blob:"],
+        childSrc: ["blob:"],
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
-        upgradeInsecureRequests: [],
       },
     },
     crossOriginEmbedderPolicy: false,
