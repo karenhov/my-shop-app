@@ -10,6 +10,7 @@ import bcrypt from "bcryptjs";
 import { rateLimit } from 'express-rate-limit';
 import helmet from "helmet";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 
 dotenv.config();
 
@@ -274,14 +275,43 @@ async function startServer() {
   
   const app = express();
   app.set('trust proxy', 1); // Trust the first proxy (Cloud Run/Nginx)
+
+  // FIX 1: CSP կարգավորված — կոնկրետ թույլատրված աղբյուրներ
+  const appOrigin = process.env.APP_URL || '';
   app.use(helmet({
-    contentSecurityPolicy: false, // Միացրած է, եթե կկարգավորվի, բայց այս պահին false՝ նկարների համար
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "https://api.cloudinary.com", "https://generativelanguage.googleapis.com"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
     crossOriginEmbedderPolicy: false,
   }));
 
-  // CORS — թույլ տալ request-ներ միայն սեփական domain-ից
+  // Cookie parser middleware — HttpOnly cookie-ների կարդալու համար
+  app.use(cookieParser());
+
+  // FIX 3: CORS — միայն APP_URL-ից կամ localhost dev-ի համար
+  const allowedOrigins = [
+    appOrigin,
+    'http://localhost:3000',
+    'http://localhost:5173',
+  ].filter(Boolean);
+
   app.use(cors({
-    origin: process.env.FRONTEND_URL || true,
+    origin: (origin, callback) => {
+      // curl/server-to-server request-ներ (origin չկա) — թույլ տալ
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   }));
 
@@ -320,13 +350,15 @@ async function startServer() {
     validate: { trustProxy: false },
   });
 
-  // Admin session middleware — x-admin-token header-ը ստուգում է
+  // FIX 2: Admin session middleware — HttpOnly cookie-ից կարդում է token-ը
+  // JavaScript-ն չի կարող կարդալ HttpOnly cookie — XSS-ի դեմ պաշտպանված
   const requireAdmin = (req: any, res: any, next: any) => {
-    const token = req.headers['x-admin-token'] as string;
+    const token = req.cookies?.["admin_token"] as string;
     if (!token) return res.status(401).json({ error: "Unauthorized" });
     const expires = sessions.get(token);
     if (!expires || Date.now() > expires) {
       sessions.delete(token);
+      res.clearCookie("admin_token", { httpOnly: true, sameSite: "strict", path: "/" });
       return res.status(401).json({ error: "Session expired" });
     }
     // Renew session — ամեն հաջող request-ից հետո 8 ժամ երկարացնել
@@ -639,7 +671,16 @@ async function startServer() {
         const crypto = await import("crypto");
         const token = crypto.randomBytes(32).toString("hex");
         sessions.set(token, Date.now() + 8 * 60 * 60 * 1000); // 8 ժամ
-        res.json({ success: true, token });
+        // FIX 2: HttpOnly cookie — JavaScript-ն չի կարող կարդալ
+        const isProduction = process.env.NODE_ENV === "production";
+        res.cookie("admin_token", token, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: "strict",
+          maxAge: 8 * 60 * 60 * 1000, // 8 ժամ
+          path: "/",
+        });
+        res.json({ success: true });
       } else {
         res.status(401).json({ error: "Invalid password" });
       }
@@ -658,10 +699,20 @@ async function startServer() {
       await query("UPDATE admin_settings SET value = $1 WHERE key = 'password'", [hashedNew]);
       // Բոլոր session-ները invalidate անել — գաղտնաբառ փոփոխությունից հետո logout
       sessions.clear();
+      // FIX 2: HttpOnly cookie-ն մաքրել
+      res.clearCookie("admin_token", { httpOnly: true, sameSite: "strict", path: "/" });
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Database error" });
     }
+  });
+
+  // Admin logout — HttpOnly cookie-ն մաքրել
+  app.post("/api/admin/logout", (req, res) => {
+    const token = req.cookies?.["admin_token"];
+    if (token) sessions.delete(token);
+    res.clearCookie("admin_token", { httpOnly: true, sameSite: "strict", path: "/" });
+    res.json({ success: true });
   });
 
   // Health check + DB keepalive (cron-job.org-ի ping-ը կպահի server-ը և DB-ը արթուն)
