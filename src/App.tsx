@@ -627,9 +627,7 @@ export default function App() {
   });
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
   const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
-  const [adminAuth, setAdminAuth] = useState<string | null>(() => {
-    try { return sessionStorage.getItem('adminToken'); } catch { return null; }
-  });
+  const [adminAuth, setAdminAuth] = useState<boolean>(false);
   const [adminPassInput, setAdminPassInput] = useState('');
   const [promoInput, setPromoInput] = useState('');
   const [isValidatingPromo, setIsValidatingPromo] = useState(false);
@@ -781,10 +779,7 @@ export default function App() {
         body: JSON.stringify({ password })
       });
       if (response.ok) {
-        const data = await response.json();
-        setAdminAuth(data.token);
-        // sessionStorage — tab փակվելիս ավտոմատ մաքրվում է
-        try { sessionStorage.setItem('adminToken', data.token); } catch {}
+        setAdminAuth(true);
         showNotification('Մուտքը հաջողվեց');
       } else {
         alert('Սխալ գաղտնաբառ');
@@ -796,17 +791,20 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
-    setAdminAuth(null);
-    try { sessionStorage.removeItem('adminToken'); } catch {}
-    try { localStorage.removeItem('adminPass'); } catch {} // հին version-ից մնացած data-ն մաքրել
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+    } catch {}
+    setAdminAuth(false);
+    try { localStorage.removeItem('adminPass'); } catch {}
   };
 
   const addProduct = async (productData: any) => {
     try {
       const response = await fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(productData)
       });
       if (response.ok) {
@@ -826,7 +824,8 @@ export default function App() {
     try {
       const response = await fetch(`/api/products/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(productData)
       });
       if (response.ok) {
@@ -846,7 +845,8 @@ export default function App() {
     if (!confirm('Ջնջե՞լ ապրանքը:')) return;
     const response = await fetch(`/api/products/${id}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
     });
     if (response.ok) {
       setProducts(prev => prev.filter(p => p.id !== id));
@@ -857,7 +857,8 @@ export default function App() {
   const addPromo = async (promoData: any) => {
     const response = await fetch('/api/promo-codes', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(promoData)
     });
     if (response.ok) {
@@ -870,7 +871,8 @@ export default function App() {
   const deletePromo = async (id: number) => {
     const response = await fetch(`/api/promo-codes/${id}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
     });
     if (response.ok) {
       setPromoCodes(prev => prev.filter(p => p.id !== id));
@@ -906,7 +908,8 @@ export default function App() {
   const fetchOrders = async () => {
     const response = await fetch('/api/orders/list', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
     });
     if (response.ok) {
       const data = await response.json();
@@ -921,7 +924,7 @@ export default function App() {
       fetchOrders();
     }
     if (adminAuth && adminView === 'promo') {
-      fetch('/api/promo-codes', { headers: { 'x-admin-token': adminAuth } })
+      fetch('/api/promo-codes', { headers: { 'Content-Type': 'application/json' }, credentials: 'include' })
         .then(res => res.json())
         .then(data => Array.isArray(data) && setPromoCodes(data))
         .catch(err => console.error('Failed to fetch promo codes:', err));
@@ -933,7 +936,8 @@ export default function App() {
     if (!confirm('Ջնջե՞լ այս պատվերը:')) return;
     const response = await fetch(`/api/orders/${id}`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
     });
     if (response.ok) {
       setOrders(prev => prev.filter(o => o.id !== id));
@@ -947,7 +951,8 @@ export default function App() {
     try {
       const response = await fetch('/api/products/bulk-block', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           ids: Array.from(selectedProductIds),
           is_blocked: block,
@@ -999,14 +1004,13 @@ export default function App() {
     try {
       const response = await fetch('/api/admin/change-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': adminAuth! },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ newPassword: passChangeData.newPass })
       });
 
       if (response.ok) {
-        // Server-ը sessions.clear() կանի — logout անել և նորից մուտք գործել
-        setAdminAuth(null);
-        try { sessionStorage.removeItem('adminToken'); } catch {}
+        setAdminAuth(false);
         setPassChangeData({ oldPass: '', newPass: '', confirmPass: '' });
         showNotification('Գաղտնաբառը փոխվեց: Մուտք գործեք նորից:');
         setAdminView('products');
