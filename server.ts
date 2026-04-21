@@ -7,7 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
-import { rateLimit } from 'express-rate-limit';
+import { rateLimit } from "express-rate-limit";
 import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -20,37 +20,72 @@ const __dirname = path.dirname(__filename);
 let isPostgres = !!process.env.DATABASE_URL;
 let pool: any = null;
 let sqlite: any = null;
+let reconnectPromise: Promise<any> | null = null;
+
+function createPostgresPool(rawUrl: string) {
+  const nextPool = new Pool({
+    connectionString: rawUrl,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    max: 2,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+  });
+
+  nextPool.on("error", (err: any) => {
+    console.error("⚠️ Postgres pool error:", err.message);
+  });
+
+  return nextPool;
+}
+
+async function closePool(targetPool: any) {
+  if (!targetPool) return;
+  try {
+    await targetPool.end();
+  } catch (err: any) {
+    console.error("⚠️ Failed to close old Postgres pool:", err.message);
+  }
+}
+
+function isConnectionError(error: any) {
+  return (
+    error?.code === "ECONNRESET" ||
+    error?.code === "ENOTFOUND" ||
+    error?.code === "ETIMEDOUT" ||
+    error?.code === "ECONNREFUSED" ||
+    error?.code === "57P01" ||
+    error?.code === "08006" ||
+    error?.code === "08001" ||
+    error?.message?.includes("terminated") ||
+    error?.message?.includes("timeout") ||
+    error?.message?.includes("Connection") ||
+    error?.message?.includes("connect")
+  );
+}
 
 async function setupDatabase() {
   try {
     if (isPostgres) {
       const rawUrl = process.env.DATABASE_URL!;
       console.log(`DATABASE_URL detected (length: ${rawUrl.length})`);
-      
-      if (rawUrl.includes("[YOUR-PASSWORD]") || rawUrl.includes("YOUR_PASSWORD") || rawUrl.includes("<password>")) {
+
+      if (
+        rawUrl.includes("[YOUR-PASSWORD]") ||
+        rawUrl.includes("YOUR_PASSWORD") ||
+        rawUrl.includes("<password>")
+      ) {
         console.error("❌ DATABASE_URL contains a placeholder!");
         isPostgres = false;
       } else {
         try {
-          pool = new Pool({
-            connectionString: rawUrl,
-            ssl: { rejectUnauthorized: false },
-            connectionTimeoutMillis: 5000,
-            idleTimeoutMillis: 60000,      // 1 րոպե — Supabase free tier-ի disconnect-ից պաշտպանություն
-            max: 3,                         // max connections (Supabase free limit-ի համար)
-            keepAlive: true,               // TCP keepAlive — Supabase-ի idle disconnect-ից պաշտպանություն
-            keepAliveInitialDelayMillis: 10000,
-          });
-
-          // Pool error handler — connection drop-ի դեպքում server-ը չ-crash-անա
-          pool.on('error', (err: any) => {
-            console.error('⚠️ Postgres pool error (will auto-reconnect):', err.message);
-          });
-
+          pool = createPostgresPool(rawUrl);
           await pool.query("SELECT 1");
           console.log("✅ Connected to Postgres successfully");
         } catch (error: any) {
           console.error("❌ Postgres connection failed:", error.message);
+          await closePool(pool);
           isPostgres = false;
           pool = null;
         }
@@ -71,72 +106,102 @@ async function setupDatabase() {
   }
 }
 
-// Auto-reconnect helper for Postgres
 async function reconnectPostgres() {
-  try {
-    const rawUrl = process.env.DATABASE_URL!;
-    if (!rawUrl) return;
-    console.log("🔄 Attempting Postgres reconnect...");
-    const newPool = new Pool({
-      connectionString: rawUrl,
-      ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 5000,
-      idleTimeoutMillis: 60000,
-      max: 3,
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,
-    });
-    newPool.on('error', (err: any) => {
-      console.error('⚠️ Postgres pool error:', err.message);
-    });
-    await newPool.query("SELECT 1");
-    pool = newPool;
-    console.log("✅ Postgres reconnected successfully");
-  } catch (err: any) {
-    console.error("❌ Postgres reconnect failed:", err.message);
-  }
+  if (!isPostgres) return null;
+  if (reconnectPromise) return reconnectPromise;
+
+  reconnectPromise = (async () => {
+    try {
+      const rawUrl = process.env.DATABASE_URL!;
+      if (!rawUrl) return null;
+
+      console.log("🔄 Attempting Postgres reconnect...");
+      const oldPool = pool;
+      const newPool = createPostgresPool(rawUrl);
+      await newPool.query("SELECT 1");
+      pool = newPool;
+      if (oldPool && oldPool !== newPool) {
+        await closePool(oldPool);
+      }
+      console.log("✅ Postgres reconnected successfully");
+      return pool;
+    } catch (err: any) {
+      console.error("❌ Postgres reconnect failed:", err.message);
+      return null;
+    } finally {
+      reconnectPromise = null;
+    }
+  })();
+
+  return reconnectPromise;
 }
 
-// Database helper
 async function query(text: string, params: any[] = []) {
-  if (isPostgres && pool) {
+  if (isPostgres) {
+    if (!pool) {
+      await reconnectPostgres();
+    }
+
+    if (!pool) {
+      throw new Error("Postgres pool unavailable");
+    }
+
     try {
       const result = await pool.query(text, params);
       return { rows: result.rows, rowCount: result.rowCount };
     } catch (error: any) {
-      // Connection-ը կորած է — auto-reconnect փորձել
-      const isConnErr = error.code === 'ECONNRESET' || error.code === 'ENOTFOUND' ||
-        error.code === '57P01' || error.message?.includes('terminated') ||
-        error.message?.includes('Connection') || error.message?.includes('connect');
-      if (isConnErr) {
+      if (isConnectionError(error)) {
         console.error("⚠️ Postgres connection lost, reconnecting...");
         await reconnectPostgres();
-        if (pool) {
-          // Մեկ անգամ retry
-          const retryResult = await pool.query(text, params);
-          return { rows: retryResult.rows, rowCount: retryResult.rowCount };
-        }
+        if (!pool) throw error;
+        const retryResult = await pool.query(text, params);
+        return { rows: retryResult.rows, rowCount: retryResult.rowCount };
       }
+
       console.error("Postgres query failed:", error);
       throw error;
     }
   } else if (sqlite) {
-    // Convert $1, $2 to ? for SQLite
     const sqliteText = text.replace(/\$\d+/g, "?");
     if (text.trim().toUpperCase().startsWith("SELECT")) {
       const rows = sqlite.prepare(sqliteText).all(...params);
       return { rows, rowCount: rows.length };
     } else {
       const result = sqlite.prepare(sqliteText).run(...params);
-      return { rows: [], rowCount: result.changes, lastInsertRowid: result.lastInsertRowid };
+      return {
+        rows: [],
+        rowCount: result.changes,
+        lastInsertRowid: result.lastInsertRowid,
+      };
     }
   }
+
   throw new Error("Database not initialized");
 }
 
-// Initialize database
+async function getPgClient() {
+  if (!pool) {
+    await reconnectPostgres();
+  }
+
+  if (!pool) {
+    throw new Error("Postgres pool unavailable");
+  }
+
+  try {
+    return await pool.connect();
+  } catch (error: any) {
+    if (isConnectionError(error)) {
+      await reconnectPostgres();
+      if (!pool) throw error;
+      return await pool.connect();
+    }
+    throw error;
+  }
+}
+
 async function initDb() {
-  const productsTable = isPostgres 
+  const productsTable = isPostgres
     ? `CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
@@ -215,44 +280,37 @@ async function initDb() {
   await query(orderItemsTable);
   await query(adminSettingsTable);
 
-  // Migration: Add min_quantity to products if it doesn't exist
   try {
     if (isPostgres) {
       await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS min_quantity INTEGER DEFAULT 1");
     } else {
-      // SQLite: check columns before altering
       const cols = sqlite.prepare("PRAGMA table_info(products)").all() as any[];
-      if (!cols.some((c: any) => c.name === 'min_quantity')) {
+      if (!cols.some((c: any) => c.name === "min_quantity")) {
         await query("ALTER TABLE products ADD COLUMN min_quantity INTEGER DEFAULT 1");
       }
     }
   } catch (e) {
-    // Column probably already exists
   }
 
-  // Migration: Add is_blocked to products if it doesn't exist
   try {
     if (isPostgres) {
       await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE");
     } else {
       const cols = sqlite.prepare("PRAGMA table_info(products)").all() as any[];
-      if (!cols.some((c: any) => c.name === 'is_blocked')) {
+      if (!cols.some((c: any) => c.name === "is_blocked")) {
         await query("ALTER TABLE products ADD COLUMN is_blocked INTEGER DEFAULT 0");
       }
     }
   } catch (e) {
-    // Column probably already exists
   }
 
-  // Set default admin password if not exists or hash it if it's plain text
   const adminPass = await query("SELECT value FROM admin_settings WHERE key = 'password'");
   if (adminPass.rowCount === 0) {
-    const hashedDefault = await bcrypt.hash('admin123', 10);
+    const hashedDefault = await bcrypt.hash("admin123", 10);
     await query("INSERT INTO admin_settings (key, value) VALUES ('password', $1)", [hashedDefault]);
   } else {
     const currentVal = adminPass.rows[0].value;
-    // Check if it looks like a bcrypt hash (bcrypt hashes usually start with $2a$, $2b$, or $2y$)
-    if (!currentVal.startsWith('$2')) {
+    if (!currentVal.startsWith("$2")) {
       console.log("🔒 Migrating plain-text admin password to hashed version...");
       const hashed = await bcrypt.hash(currentVal, 10);
       await query("UPDATE admin_settings SET value = $1 WHERE key = 'password'", [hashed]);
@@ -260,7 +318,6 @@ async function initDb() {
   }
 }
 
-// Session store — token → expiry timestamp
 const sessions = new Map<string, number>();
 
 async function startServer() {
@@ -270,94 +327,72 @@ async function startServer() {
     console.log("Database initialized successfully");
   } catch (error) {
     console.error("Failed to initialize database:", error);
-    // Continue starting the server even if DB fails, so the UI can show the error status
   }
-  
+
   const app = express();
-  app.set('trust proxy', 1); // Trust the first proxy (Cloud Run/Nginx)
+  app.set("trust proxy", 1);
 
-  // FIX 1: CSP կարգավորված
-  const appOrigin = process.env.APP_URL || '';
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        // React + Vite runtime-ի համար unsafe-inline/eval անհրաժեշտ է
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-        // Բոլոր HTTPS նկարներ, data URIs, blob (html-to-image-ի համար)
-        imgSrc: ["'self'", "data:", "blob:", "https:"],
-        // API կանչեր — Gemini, Cloudinary, Google Fonts, ինքը server
-        connectSrc: [
-          "'self'",
-          // https: — թույլ է տալիս fetch() ցանկացած HTTPS հասցեից
-          // անհրաժեշտ է html-to-image-ի preloadImagesAsBase64()-ի համար
-          // (նկարները կարող են լինել ibb.co, postimg.cc, cloudinary.com և այլ domain-ներից)
-          "https:",
-          "wss:",
-          "ws:",
-        ],
-        // Worker-ներ blob URL-ներ (html-to-image)
-        workerSrc: ["'self'", "blob:"],
-        childSrc: ["blob:"],
-        frameSrc: ["'none'"],
-        objectSrc: ["'none'"],
+  const appOrigin = process.env.APP_URL || "";
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+          fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+          imgSrc: ["'self'", "data:", "blob:", "https:"],
+          connectSrc: ["'self'", "https:", "wss:", "ws:"],
+          workerSrc: ["'self'", "blob:"],
+          childSrc: ["blob:"],
+          frameSrc: ["'none'"],
+          objectSrc: ["'none'"],
+        },
       },
-    },
-    crossOriginEmbedderPolicy: false,
-  }));
+      crossOriginEmbedderPolicy: false,
+    })
+  );
 
-  // Cookie parser middleware — HttpOnly cookie-ների կարդալու համար
   app.use(cookieParser());
 
-  // FIX 3: CORS — APP_URL սահմանված է՝ թույլ տալ միայն այն, հակառակ դեպքում same-origin
-  const allowedOrigins = [
-    appOrigin,
-    'http://localhost:3000',
-    'http://localhost:5173',
-  ].filter(Boolean);
+  const allowedOrigins = [appOrigin, "http://localhost:3000", "http://localhost:5173"].filter(Boolean);
 
-  app.use(cors({
-    origin: (origin, callback) => {
-      // Same-origin request-ներ (origin չկա կամ server-to-server) — միշտ թույլ տալ
-      if (!origin) return callback(null, true);
-      // APP_URL սահմանված չէ — Render SPA mode, frontend և backend նույն domain-ում են
-      if (allowedOrigins.length === 2) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
-  }));
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.length === 2) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error("Not allowed by CORS"));
+      },
+      credentials: true,
+    })
+  );
 
-  // Upload endpoint-ի համար մեծ limit, մնացածի համար՝ փոքր (DoS պաշտպանություն)
-  app.use('/api/upload-cart-image', express.json({ limit: '50mb' }));
-  app.use(express.json({ limit: '1mb' }));
-  app.use(express.urlencoded({ limit: '1mb', extended: true }));
+  app.use("/api/upload-cart-image", express.json({ limit: "50mb" }));
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ limit: "1mb", extended: true }));
 
-  // Brute-force protection for admin login
   const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // Limit each IP to 10 login attempts per windowMs
+    windowMs: 15 * 60 * 1000,
+    max: 10,
     message: { error: "Չափազանց շատ փորձեր, խնդրում ենք փորձել մի փոքր ուշ:" },
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false },
   });
 
-  // Upload endpoint-ի rate limit — Cloudinary-ի ծախսից պաշտպանություն
   const uploadLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 10, // max 10 upload per IP per minute
+    windowMs: 60 * 1000,
+    max: 10,
     message: { error: "Չափազանց շատ upload, խնդրում ենք մի փոքր սպասել:" },
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false },
   });
 
-  // Order spam protection — max 5 orders per IP per minute
   const orderLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
+    windowMs: 60 * 1000,
     max: 5,
     message: { error: "Չափազանց շատ պատվեր, խնդրում ենք մի փոքր սպասել:" },
     standardHeaders: true,
@@ -365,8 +400,6 @@ async function startServer() {
     validate: { trustProxy: false },
   });
 
-  // FIX 2: Admin session middleware — HttpOnly cookie-ից կարդում է token-ը
-  // JavaScript-ն չի կարող կարդալ HttpOnly cookie — XSS-ի դեմ պաշտպանված
   const requireAdmin = (req: any, res: any, next: any) => {
     const token = req.cookies?.["admin_token"] as string;
     if (!token) return res.status(401).json({ error: "Unauthorized" });
@@ -376,12 +409,10 @@ async function startServer() {
       res.clearCookie("admin_token", { httpOnly: true, sameSite: "strict", path: "/" });
       return res.status(401).json({ error: "Session expired" });
     }
-    // Renew session — ամեն հաջող request-ից հետո 8 ժամ երկարացնել
     sessions.set(token, Date.now() + 8 * 60 * 60 * 1000);
     next();
   };
 
-  // Products
   app.get("/api/products", async (req, res) => {
     try {
       if (!isPostgres && !sqlite) {
@@ -421,11 +452,14 @@ async function startServer() {
   app.put("/api/products/:id", requireAdmin, async (req, res) => {
     try {
       const { name, price, code, description, image, category, min_quantity } = req.body;
-      await query(`
+      await query(
+        `
         UPDATE products 
         SET name = $1, price = $2, code = $3, description = $4, image = $5, category = $6, min_quantity = $7
         WHERE id = $8
-      `, [name, price, code, description, image, category, min_quantity || 1, req.params.id]);
+      `,
+        [name, price, code, description, image, category, min_quantity || 1, req.params.id]
+      );
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Database error" });
@@ -438,7 +472,7 @@ async function startServer() {
       if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "No IDs provided" });
       const safeIds = ids.map((id: any) => parseInt(id, 10)).filter((id: number) => !isNaN(id) && id > 0);
       if (safeIds.length === 0) return res.status(400).json({ error: "Invalid IDs" });
-      const blockedValue = isPostgres ? is_blocked : (is_blocked ? 1 : 0);
+      const blockedValue = isPostgres ? is_blocked : is_blocked ? 1 : 0;
       for (const id of safeIds) {
         await query("UPDATE products SET is_blocked = $1 WHERE id = $2", [blockedValue, id]);
       }
@@ -448,8 +482,6 @@ async function startServer() {
     }
   });
 
-  // Promo Codes
-  // Admin only — returns all codes with IDs (for admin panel)
   app.get("/api/promo-codes", requireAdmin, async (req, res) => {
     try {
       const result = await query("SELECT * FROM promo_codes");
@@ -459,17 +491,13 @@ async function startServer() {
     }
   });
 
-  // Public — validate a single promo code without exposing all codes
   app.post("/api/validate-promo", async (req, res) => {
     try {
       const { code } = req.body;
       if (!code || typeof code !== "string") {
         return res.status(400).json({ valid: false });
       }
-      const result = await query(
-        "SELECT id, discount_percent FROM promo_codes WHERE code = $1",
-        [code.trim()]
-      );
+      const result = await query("SELECT id, discount_percent FROM promo_codes WHERE code = $1", [code.trim()]);
       if (result.rows.length === 0) {
         return res.json({ valid: false });
       }
@@ -503,12 +531,10 @@ async function startServer() {
     }
   });
 
-  // Orders
   app.post("/api/orders", orderLimiter, async (req, res) => {
     try {
       const { customer_name, customer_phone, customer_address, items } = req.body;
 
-      // Validation
       if (!customer_name || !customer_phone || !customer_address) {
         return res.status(400).json({ error: "Missing required fields" });
       }
@@ -516,7 +542,6 @@ async function startServer() {
         return res.status(400).json({ error: "Cart is empty" });
       }
 
-      // ✅ Server-side price verification — client-ի price-ն անտեսել, DB-ից կարդալ
       const verifiedItems: { id: number; quantity: number; price: number }[] = [];
       for (const item of items) {
         const productResult = await query("SELECT price, is_blocked FROM products WHERE id = $1", [item.id]);
@@ -531,13 +556,12 @@ async function startServer() {
         verifiedItems.push({ id: item.id, quantity: item.quantity, price: product.price });
       }
 
-      // Calculate real total server-side
       const real_total = verifiedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
-      
+
       if (isPostgres) {
-        const client = await pool.connect();
+        const client = await getPgClient();
         try {
-          await client.query('BEGIN');
+          await client.query("BEGIN");
           const orderResult = await client.query(
             "INSERT INTO orders (customer_name, customer_phone, customer_address, total_price) VALUES ($1, $2, $3, $4) RETURNING id",
             [customer_name, customer_phone, customer_address, real_total]
@@ -549,24 +573,31 @@ async function startServer() {
               [orderId, item.id, item.quantity, item.price]
             );
           }
-          await client.query('COMMIT');
+          await client.query("COMMIT");
           res.json({ id: orderId });
-        } catch (error) {
-          await client.query('ROLLBACK');
+        } catch (error: any) {
+          try {
+            await client.query("ROLLBACK");
+          } catch (rollbackError: any) {
+            console.error("Rollback failed:", rollbackError.message);
+          }
+          if (isConnectionError(error)) {
+            await reconnectPostgres();
+          }
           throw error;
         } finally {
           client.release();
         }
       } else {
         const transaction = sqlite.transaction(() => {
-          const orderResult = sqlite.prepare(
-            "INSERT INTO orders (customer_name, customer_phone, customer_address, total_price) VALUES (?, ?, ?, ?)"
-          ).run(customer_name, customer_phone, customer_address, real_total);
+          const orderResult = sqlite
+            .prepare("INSERT INTO orders (customer_name, customer_phone, customer_address, total_price) VALUES (?, ?, ?, ?)")
+            .run(customer_name, customer_phone, customer_address, real_total);
           const orderId = orderResult.lastInsertRowid;
           for (const item of verifiedItems) {
-            sqlite.prepare(
-              "INSERT INTO order_items (order_id, product_id, quantity, price_at_time) VALUES (?, ?, ?, ?)"
-            ).run(orderId, item.id, item.quantity, item.price);
+            sqlite
+              .prepare("INSERT INTO order_items (order_id, product_id, quantity, price_at_time) VALUES (?, ?, ?, ?)")
+              .run(orderId, item.id, item.quantity, item.price);
           }
           return orderId;
         });
@@ -578,8 +609,6 @@ async function startServer() {
     }
   });
 
-  // POST /api/orders/list — fetch orders (requireAdmin middleware ստուգում է token-ը)
-  // N+1 fix: մի JOIN query-ով բեռնում ենք բոլոր orders + items միանգամից
   app.post("/api/orders/list", requireAdmin, async (req, res) => {
     try {
       const result = await query(`
@@ -598,28 +627,27 @@ async function startServer() {
         ORDER BY o.created_at DESC
       `);
 
-      // Group rows ըստ order id-ի
       const ordersMap = new Map<number, any>();
       for (const row of result.rows) {
         if (!ordersMap.has(row.id)) {
           ordersMap.set(row.id, {
-            id:               row.id,
-            customer_name:    row.customer_name,
-            customer_phone:   row.customer_phone,
+            id: row.id,
+            customer_name: row.customer_name,
+            customer_phone: row.customer_phone,
             customer_address: row.customer_address,
-            total_price:      row.total_price,
-            created_at:       row.created_at,
-            items:            [],
+            total_price: row.total_price,
+            created_at: row.created_at,
+            items: [],
           });
         }
         if (row.item_id) {
           ordersMap.get(row.id).items.push({
-            id:             row.item_id,
-            quantity:       row.quantity,
-            price_at_time:  row.price_at_time,
-            name:           row.item_name,
-            image:          row.item_image,
-            code:           row.item_code,
+            id: row.item_id,
+            quantity: row.quantity,
+            price_at_time: row.price_at_time,
+            name: row.item_name,
+            image: row.item_image,
+            code: row.item_code,
           });
         }
       }
@@ -650,21 +678,20 @@ async function startServer() {
     }
   });
 
-  // Admin Auth & Settings
   app.get("/api/db-status", async (req, res) => {
     try {
       await query("SELECT 1");
-      res.json({ 
-        connected: true, 
-        type: isPostgres ? "PostgreSQL (Supabase)" : "SQLite (Local)",
-        isPostgres 
-      });
-    } catch (error) {
-      res.json({ 
-        connected: false, 
+      res.json({
+        connected: true,
         type: isPostgres ? "PostgreSQL (Supabase)" : "SQLite (Local)",
         isPostgres,
-        error: (error as Error).message
+      });
+    } catch (error) {
+      res.json({
+        connected: false,
+        type: isPostgres ? "PostgreSQL (Supabase)" : "SQLite (Local)",
+        isPostgres,
+        error: (error as Error).message,
       });
     }
   });
@@ -673,26 +700,25 @@ async function startServer() {
     try {
       const { password } = req.body;
       let currentPassHash = "";
-      
+
       const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
       if (adminPassResult.rows.length > 0) {
         currentPassHash = adminPassResult.rows[0].value;
       } else {
         return res.status(500).json({ error: "Admin settings not initialized" });
       }
-      
+
       const isMatch = await bcrypt.compare(password, currentPassHash);
       if (isMatch) {
         const crypto = await import("crypto");
         const token = crypto.randomBytes(32).toString("hex");
-        sessions.set(token, Date.now() + 8 * 60 * 60 * 1000); // 8 ժամ
-        // FIX 2: HttpOnly cookie — JavaScript-ն չի կարող կարդալ
+        sessions.set(token, Date.now() + 8 * 60 * 60 * 1000);
         const isProduction = process.env.NODE_ENV === "production";
         res.cookie("admin_token", token, {
           httpOnly: true,
           secure: isProduction,
           sameSite: "strict",
-          maxAge: 8 * 60 * 60 * 1000, // 8 ժամ
+          maxAge: 8 * 60 * 60 * 1000,
           path: "/",
         });
         res.json({ success: true });
@@ -712,9 +738,7 @@ async function startServer() {
       }
       const hashedNew = await bcrypt.hash(newPassword, 10);
       await query("UPDATE admin_settings SET value = $1 WHERE key = 'password'", [hashedNew]);
-      // Բոլոր session-ները invalidate անել — գաղտնաբառ փոփոխությունից հետո logout
       sessions.clear();
-      // FIX 2: HttpOnly cookie-ն մաքրել
       res.clearCookie("admin_token", { httpOnly: true, sameSite: "strict", path: "/" });
       res.json({ success: true });
     } catch (error) {
@@ -722,7 +746,6 @@ async function startServer() {
     }
   });
 
-  // Admin logout — HttpOnly cookie-ն մաքրել
   app.post("/api/admin/logout", (req, res) => {
     const token = req.cookies?.["admin_token"];
     if (token) sessions.delete(token);
@@ -730,27 +753,14 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // Health check + DB keepalive (cron-job.org-ի ping-ը կպահի server-ը և DB-ը արթուն)
   app.get("/health", async (req, res) => {
-    let dbOk = false;
-    try {
-      // 3 վրկ timeout — Render-ի 30 վրկ limit-ից շատ կարճ, crash-ը կանխելու համար
-      await Promise.race([
-        query("SELECT 1"),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("DB timeout")), 3000))
-      ]);
-      dbOk = true;
-    } catch {
-      // DB timeout կամ error — server-ը կենդանի է, DB-ն ոչ
-    }
-    res.status(200).json({ 
-      status: "ok", 
-      db: dbOk ? "connected" : "unavailable",
-      timestamp: new Date().toISOString() 
+    res.status(200).json({
+      status: "ok",
+      dbMode: isPostgres ? "postgres" : "sqlite",
+      timestamp: new Date().toISOString(),
     });
   });
 
-  // Cart image upload — Cloudinary (persistent, works on Render)
   app.post("/api/upload-cart-image", uploadLimiter, async (req, res) => {
     try {
       const { image } = req.body;
@@ -759,7 +769,7 @@ async function startServer() {
       }
 
       const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-      const apiKey    = process.env.CLOUDINARY_API_KEY;
+      const apiKey = process.env.CLOUDINARY_API_KEY;
       const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
       if (!cloudName || !apiKey || !apiSecret) {
@@ -779,10 +789,10 @@ async function startServer() {
       formData.append("signature", signature);
       formData.append("folder", folder);
 
-      const uploadRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-        { method: "POST", body: formData }
-      );
+      const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+        method: "POST",
+        body: formData,
+      });
 
       if (!uploadRes.ok) {
         const errText = await uploadRes.text();
@@ -790,7 +800,7 @@ async function startServer() {
         return res.status(500).json({ error: "Cloudinary upload failed" });
       }
 
-      const data = await uploadRes.json() as { secure_url: string };
+      const data = (await uploadRes.json()) as { secure_url: string };
       res.json({ url: data.secure_url });
     } catch (err) {
       console.error("Image upload error:", err);
@@ -798,8 +808,6 @@ async function startServer() {
     }
   });
 
-
-  // AI Chat — proxies Gemini API call server-side so API key stays secret
   app.post("/api/ai-chat", async (req, res) => {
     try {
       const { messages, systemInstruction } = req.body;
@@ -820,7 +828,6 @@ async function startServer() {
         parts: [{ text: m.content }],
       }));
 
-      // Set response to stream
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.setHeader("Transfer-Encoding", "chunked");
 
@@ -842,7 +849,6 @@ async function startServer() {
       res.end();
     } catch (err: any) {
       if (!res.headersSent) {
-        // 429 — Rate limit (անվճար պլան)
         const isRateLimit =
           err?.status === 429 ||
           err?.code === 429 ||
@@ -852,17 +858,19 @@ async function startServer() {
           err?.message?.toLowerCase().includes("resource_exhausted");
 
         if (isRateLimit) {
-          // Gemini-ն կարող է retryDelay տալ — օգտագործել եթե կա, հակառակ դեպքում 60 վրկ
           const retryAfter = err?.errorDetails?.[0]?.retryDelay
             ? parseInt(err.errorDetails[0].retryDelay)
-            : (err?.headers?.['retry-after'] ? parseInt(err.headers['retry-after']) : 60);
+            : err?.headers?.["retry-after"]
+              ? parseInt(err.headers["retry-after"])
+              : 60;
           return res.status(429).json({ error: "Rate limit exceeded.", retryAfter });
         }
 
-        // 401/403 — Սխալ կամ ժամկետանց API key
         const isAuthError =
-          err?.status === 401 || err?.status === 403 ||
-          err?.message?.includes("401") || err?.message?.includes("403") ||
+          err?.status === 401 ||
+          err?.status === 403 ||
+          err?.message?.includes("401") ||
+          err?.message?.includes("403") ||
           err?.message?.toLowerCase().includes("api key") ||
           err?.message?.toLowerCase().includes("invalid") ||
           err?.message?.toLowerCase().includes("permission");
@@ -878,7 +886,6 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -887,30 +894,27 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath, {
-  etag: true,
-  lastModified: true,
-  setHeaders: (res, filePath) => {
-    // HTML ֆայլեր — ԵՐԲԵՔ cache չանել
-    if (filePath.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-    }
-    // JS/CSS ֆայլեր — երկար cache (Vite-ը hash ավելացնում է անվան մեջ)
-    else if (filePath.match(/\.(js|css)$/)) {
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    }
-    // Նկարներ
-    else if (filePath.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/)) {
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-    }
-  }
-}));
+    app.use(
+      express.static(distPath, {
+        etag: true,
+        lastModified: true,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith(".html")) {
+            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            res.setHeader("Pragma", "no-cache");
+            res.setHeader("Expires", "0");
+          } else if (filePath.match(/\.(js|css)$/)) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          } else if (filePath.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/)) {
+            res.setHeader("Cache-Control", "public, max-age=86400");
+          }
+        },
+      })
+    );
     app.get("*", (req, res) => {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
