@@ -54,8 +54,13 @@ async function setupDatabase() {
           console.log("✅ Connected to Postgres successfully");
         } catch (error: any) {
           console.error("❌ Postgres connection failed:", error.message);
-          isPostgres = false;
+          console.log("🔄 Will retry Postgres connection in background...");
           pool = null;
+          // isPostgres=true պահել — reconnect-ը կփորձի կրկին
+          // SQLite-ին անցնել ՉԱՆԵԼ եթե DATABASE_URL կա
+          setTimeout(() => {
+            reconnectPostgres().catch(() => {});
+          }, 5000);
         }
       }
     }
@@ -101,6 +106,7 @@ async function reconnectPostgres() {
     });
     await newPool.query("SELECT 1");
     pool = newPool;
+    isPostgres = true;  // ← Կարևոր — flag-ը վերականգնել
     console.log("✅ Postgres reconnected successfully");
   } catch (err: any) {
     console.error("❌ Postgres reconnect failed:", err.message);
@@ -113,7 +119,8 @@ async function reconnectPostgres() {
 
 // Database helper
 async function query(text: string, params: any[] = []) {
-  if (isPostgres && pool) {
+  // pool կա նշանակում է Postgres-ը reconnect-ից հետո աշխատում է
+  if (pool || (isPostgres && !sqlite)) {
     try {
       const result = await pool.query(text, params);
       return { rows: result.rows, rowCount: result.rowCount };
