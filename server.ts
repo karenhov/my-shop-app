@@ -77,6 +77,11 @@ async function reconnectPostgres() {
     const rawUrl = process.env.DATABASE_URL!;
     if (!rawUrl) return;
     console.log("🔄 Attempting Postgres reconnect...");
+    // Հին pool-ը փակել՝ connection leak-ից խուսափելու համար
+    if (pool) {
+      try { await pool.end(); } catch (_) {}
+      pool = null;
+    }
     const newPool = new Pool({
       connectionString: rawUrl,
       ssl: { rejectUnauthorized: false },
@@ -105,9 +110,13 @@ async function query(text: string, params: any[] = []) {
       return { rows: result.rows, rowCount: result.rowCount };
     } catch (error: any) {
       // Connection-ը կորած է — auto-reconnect փորձել
-      const isConnErr = error.code === 'ECONNRESET' || error.code === 'ENOTFOUND' ||
-        error.code === '57P01' || error.message?.includes('terminated') ||
-        error.message?.includes('Connection') || error.message?.includes('connect');
+      // Միայն իրական connection error-ների դեպքում reconnect անել
+      // '23505'=unique, '23502'=not null, '42P01'=table not found — սրանք DB error-ներ են, ոչ connection
+      const pgConnCodes = ['ECONNRESET', 'ENOTFOUND', '57P01', 'EPIPE', 'ETIMEDOUT'];
+      const isConnErr = pgConnCodes.includes(error.code) ||
+        (error.message?.includes('terminated') && !error.message?.includes('constraint')) ||
+        error.message?.includes('SSL connection') ||
+        error.message?.includes('server closed the connection');
       if (isConnErr) {
         console.error("⚠️ Postgres connection lost, reconnecting...");
         await reconnectPostgres();
@@ -483,14 +492,26 @@ async function startServer() {
   app.post("/api/promo-codes", requireAdmin, async (req, res) => {
     try {
       const { code, discount_percent } = req.body;
+      // Input validation — DB-ին հասնելուց առաջ ստուգել
+      if (!code || typeof code !== 'string' || code.trim().length === 0) {
+        return res.status(400).json({ error: "Invalid promo code" });
+      }
+      const discountNum = parseInt(discount_percent, 10);
+      if (isNaN(discountNum) || discountNum < 1 || discountNum > 100) {
+        return res.status(400).json({ error: "Discount must be between 1 and 100" });
+      }
       const result = await query(
         "INSERT INTO promo_codes (code, discount_percent) VALUES ($1, $2) RETURNING id",
-        [code, discount_percent]
+        [code.trim().toUpperCase(), discountNum]
       );
       const id = isPostgres ? result.rows[0].id : (result as any).lastInsertRowid;
       res.json({ id });
-    } catch (e) {
-      res.status(400).json({ error: "Code already exists or database error" });
+    } catch (e: any) {
+      // Unique constraint violation — DB reconnect չանել, պարզապես error վերադարձնել
+      if (e?.code === '23505') {
+        return res.status(400).json({ error: "Պրոմոկոդն արդեն գոյություն ունի" });
+      }
+      res.status(400).json({ error: "Database error" });
     }
   });
 
