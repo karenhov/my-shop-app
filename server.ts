@@ -35,24 +35,24 @@ async function setupDatabase() {
           pool = new Pool({
             connectionString: rawUrl,
             ssl: { rejectUnauthorized: false },
-            connectionTimeoutMillis: 30000,
-            idleTimeoutMillis: 10000,
-            max: 2,
-            min: 0,
+            connectionTimeoutMillis: 5000,
+            idleTimeoutMillis: 60000,      // 1 րոպե — Supabase free tier-ի disconnect-ից պաշտպանություն
+            max: 3,                         // max connections (Supabase free limit-ի համար)
+            keepAlive: true,               // TCP keepAlive — Supabase-ի idle disconnect-ից պաշտպանություն
+            keepAliveInitialDelayMillis: 10000,
           });
 
+          // Pool error handler — connection drop-ի դեպքում server-ը չ-crash-անա
           pool.on('error', (err: any) => {
             console.error('⚠️ Postgres pool error (will auto-reconnect):', err.message);
-            setTimeout(() => { reconnectPostgres().catch(() => {}); }, 2000);
           });
 
           await pool.query("SELECT 1");
           console.log("✅ Connected to Postgres successfully");
         } catch (error: any) {
           console.error("❌ Postgres connection failed:", error.message);
+          isPostgres = false;
           pool = null;
-          // isPostgres=true պահել — DATABASE_URL կա, reconnect-ը կփորձի կրկին
-          setTimeout(() => { reconnectPostgres().catch(() => {}); }, 5000);
         }
       }
     }
@@ -77,47 +77,37 @@ async function reconnectPostgres() {
     const rawUrl = process.env.DATABASE_URL!;
     if (!rawUrl) return;
     console.log("🔄 Attempting Postgres reconnect...");
-    if (pool) {
-      try { await pool.end(); } catch (_) {}
-      pool = null;
-    }
     const newPool = new Pool({
       connectionString: rawUrl,
       ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 30000,
-      idleTimeoutMillis: 10000,
-      max: 2,
-      min: 0,
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 60000,
+      max: 3,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
     });
     newPool.on('error', (err: any) => {
       console.error('⚠️ Postgres pool error:', err.message);
-      setTimeout(() => { reconnectPostgres().catch(() => {}); }, 2000);
     });
     await newPool.query("SELECT 1");
     pool = newPool;
-    isPostgres = true;
     console.log("✅ Postgres reconnected successfully");
   } catch (err: any) {
     console.error("❌ Postgres reconnect failed:", err.message);
-    setTimeout(() => { reconnectPostgres().catch(() => {}); }, 10000);
   }
 }
 
 // Database helper
 async function query(text: string, params: any[] = []) {
-  if (pool || (isPostgres && !sqlite)) {
-    if (!pool) throw new Error("Database not initialized");
+  if (isPostgres && pool) {
     try {
       const result = await pool.query(text, params);
       return { rows: result.rows, rowCount: result.rowCount };
     } catch (error: any) {
-      const pgConnCodes = ['ECONNRESET', 'ENOTFOUND', '57P01', 'EPIPE', 'ETIMEDOUT'];
-      const isConnErr = pgConnCodes.includes(error.code) ||
-        (error.message?.includes('terminated') && !error.message?.includes('constraint')) ||
-        error.message?.includes('SSL connection') ||
-        error.message?.includes('server closed the connection') ||
-        error.message?.includes('Connection terminated') ||
-        (error.cause?.message?.includes('Connection terminated'));
+      // Connection-ը կորած է — auto-reconnect փորձել
+      const isConnErr = error.code === 'ECONNRESET' || error.code === 'ENOTFOUND' ||
+        error.code === '57P01' || error.message?.includes('terminated') ||
+        error.message?.includes('Connection') || error.message?.includes('connect');
       if (isConnErr) {
         console.error("⚠️ Postgres connection lost, reconnecting...");
         await reconnectPostgres();
@@ -493,24 +483,14 @@ async function startServer() {
   app.post("/api/promo-codes", requireAdmin, async (req, res) => {
     try {
       const { code, discount_percent } = req.body;
-      if (!code || typeof code !== 'string' || code.trim().length === 0) {
-        return res.status(400).json({ error: "Invalid promo code" });
-      }
-      const discountNum = parseInt(discount_percent, 10);
-      if (isNaN(discountNum) || discountNum < 1 || discountNum > 100) {
-        return res.status(400).json({ error: "Discount must be between 1 and 100" });
-      }
       const result = await query(
         "INSERT INTO promo_codes (code, discount_percent) VALUES ($1, $2) RETURNING id",
-        [code.trim().toUpperCase(), discountNum]
+        [code, discount_percent]
       );
       const id = isPostgres ? result.rows[0].id : (result as any).lastInsertRowid;
       res.json({ id });
-    } catch (e: any) {
-      if (e?.code === '23505') {
-        return res.status(400).json({ error: "Պրոմոկոդն արդեն գոյություն ունի" });
-      }
-      res.status(400).json({ error: "Database error" });
+    } catch (e) {
+      res.status(400).json({ error: "Code already exists or database error" });
     }
   });
 
@@ -689,46 +669,30 @@ async function startServer() {
     }
   });
 
-  let cachedAdminPassHash: string | null = null;
-  async function refreshAdminPassCache() {
-    try {
-      const result = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-      if (result.rows.length > 0) cachedAdminPassHash = result.rows[0].value;
-    } catch (_) {}
-  }
-  refreshAdminPassCache();
-
   app.post("/api/admin/login", loginLimiter, async (req, res) => {
     try {
       const { password } = req.body;
       let currentPassHash = "";
-      try {
-        const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
-        if (adminPassResult.rows.length > 0) {
-          currentPassHash = adminPassResult.rows[0].value;
-          cachedAdminPassHash = currentPassHash;
-        }
-      } catch (_) {
-        if (cachedAdminPassHash) {
-          currentPassHash = cachedAdminPassHash;
-        } else {
-          return res.status(503).json({ error: "Database unavailable, please try again in a moment" });
-        }
-      }
-      if (!currentPassHash) {
+      
+      const adminPassResult = await query("SELECT value FROM admin_settings WHERE key = 'password'");
+      if (adminPassResult.rows.length > 0) {
+        currentPassHash = adminPassResult.rows[0].value;
+      } else {
         return res.status(500).json({ error: "Admin settings not initialized" });
       }
+      
       const isMatch = await bcrypt.compare(password, currentPassHash);
       if (isMatch) {
         const crypto = await import("crypto");
         const token = crypto.randomBytes(32).toString("hex");
-        sessions.set(token, Date.now() + 8 * 60 * 60 * 1000);
+        sessions.set(token, Date.now() + 8 * 60 * 60 * 1000); // 8 ժամ
+        // FIX 2: HttpOnly cookie — JavaScript-ն չի կարող կարդալ
         const isProduction = process.env.NODE_ENV === "production";
         res.cookie("admin_token", token, {
           httpOnly: true,
           secure: isProduction,
           sameSite: "strict",
-          maxAge: 8 * 60 * 60 * 1000,
+          maxAge: 8 * 60 * 60 * 1000, // 8 ժամ
           path: "/",
         });
         res.json({ success: true });
