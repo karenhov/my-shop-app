@@ -781,15 +781,11 @@ export default function App() {
       if (response.ok) {
         setAdminAuth(true);
         showNotification('Մուտքը հաջողվեց');
-      } else if (response.status === 401) {
-        alert('Սխալ գաղտնաբառ');
-      } else if (response.status === 503) {
-        alert('Տվյալների բազան ժամանակավորապես անհասանելի է: Խնդրում ենք 10-15 վայրկյան հետո փորձել:');
       } else {
-        alert('Սերվերի սխալ: Խնդրում ենք փորձել մի փոքր ուշ:');
+        alert('Սխալ գաղտնաբառ');
       }
     } catch (error) {
-      alert('Կապի խնդիր: Ստուգեք ինտերնետ կապը և կրկին փորձեք:');
+      alert('Սերվերի սխալ: Խնդրում ենք փորձել մի փոքր ուշ:');
     } finally {
       setIsLoggingIn(false);
     }
