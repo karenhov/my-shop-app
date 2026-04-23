@@ -200,6 +200,12 @@ async function getPgClient() {
   }
 }
 
+const PRODUCTS_ORDER_BY = "ORDER BY COALESCE(display_order, id) DESC, id DESC";
+
+async function fetchOrderedProducts() {
+  return query(`SELECT * FROM products ${PRODUCTS_ORDER_BY}`);
+}
+
 async function initDb() {
   const productsTable = isPostgres
     ? `CREATE TABLE IF NOT EXISTS products (
@@ -301,6 +307,19 @@ async function initDb() {
         await query("ALTER TABLE products ADD COLUMN is_blocked INTEGER DEFAULT 0");
       }
     }
+  } catch (e) {
+  }
+
+  try {
+    if (isPostgres) {
+      await query("ALTER TABLE products ADD COLUMN IF NOT EXISTS display_order INTEGER");
+    } else {
+      const cols = sqlite.prepare("PRAGMA table_info(products)").all() as any[];
+      if (!cols.some((c: any) => c.name === "display_order")) {
+        await query("ALTER TABLE products ADD COLUMN display_order INTEGER");
+      }
+    }
+    await query("UPDATE products SET display_order = id WHERE display_order IS NULL");
   } catch (e) {
   }
 
@@ -418,7 +437,7 @@ async function startServer() {
       if (!isPostgres && !sqlite) {
         return res.status(503).json({ error: "Database not available. Please check server configuration." });
       }
-      const result = await query("SELECT * FROM products ORDER BY id DESC");
+      const result = await fetchOrderedProducts();
       res.json(result.rows);
     } catch (error) {
       console.error("GET /api/products error:", error);
@@ -434,7 +453,8 @@ async function startServer() {
         [name, price, code, description, image, category, min_quantity || 1]
       );
       const id = isPostgres ? result.rows[0].id : (result as any).lastInsertRowid;
-      res.json({ id });
+      await query("UPDATE products SET display_order = $1 WHERE id = $2", [id, id]);
+      res.json({ id, display_order: id });
     } catch (error) {
       res.status(500).json({ error: "Database error" });
     }
@@ -470,13 +490,34 @@ async function startServer() {
     try {
       const { ids, is_blocked } = req.body;
       if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "No IDs provided" });
-      const safeIds = ids.map((id: any) => parseInt(id, 10)).filter((id: number) => !isNaN(id) && id > 0);
-      if (safeIds.length === 0) return res.status(400).json({ error: "Invalid IDs" });
-      const blockedValue = isPostgres ? is_blocked : is_blocked ? 1 : 0;
-      for (const id of safeIds) {
-        await query("UPDATE products SET is_blocked = $1 WHERE id = $2", [blockedValue, id]);
+      const seenIds = new Set<number>();
+      const safeIds: number[] = [];
+      for (const rawId of ids) {
+        const id = parseInt(rawId, 10);
+        if (isNaN(id) || id <= 0 || seenIds.has(id)) continue;
+        seenIds.add(id);
+        safeIds.push(id);
       }
-      res.json({ success: true });
+      if (safeIds.length === 0) return res.status(400).json({ error: "Invalid IDs" });
+      const shouldBlock = Boolean(is_blocked);
+      const blockedValue = isPostgres ? shouldBlock : shouldBlock ? 1 : 0;
+
+      if (shouldBlock) {
+        for (const id of safeIds) {
+          await query("UPDATE products SET is_blocked = $1 WHERE id = $2", [blockedValue, id]);
+        }
+      } else {
+        const maxOrderResult = await query("SELECT COALESCE(MAX(display_order), 0) AS max_order FROM products");
+        let nextDisplayOrder = (Number(maxOrderResult.rows[0]?.max_order) || 0) + safeIds.length;
+
+        for (const id of safeIds) {
+          await query("UPDATE products SET is_blocked = $1, display_order = $2 WHERE id = $3", [blockedValue, nextDisplayOrder, id]);
+          nextDisplayOrder -= 1;
+        }
+      }
+
+      const products = await fetchOrderedProducts();
+      res.json({ success: true, products: products.rows });
     } catch (error) {
       res.status(500).json({ error: "Database error" });
     }
