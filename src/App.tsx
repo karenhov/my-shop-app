@@ -656,6 +656,20 @@ export default function App() {
     return url;
   };
 
+  const loadProducts = async () => {
+    try {
+      const response = await fetch('/api/products');
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setProducts(data);
+      }
+      return data;
+    } catch (err) {
+      console.error("Failed to fetch products:", err);
+      return null;
+    }
+  };
+
   useEffect(() => {
     // Show info modal only on desktop (not mobile)
     const isMobile = window.innerWidth < 640;
@@ -671,14 +685,7 @@ export default function App() {
   }, [cart]);
 
   useEffect(() => {
-    fetch('/api/products')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setProducts(data);
-        }
-      })
-      .catch(err => console.error("Failed to fetch products:", err));
+    void loadProducts();
 
     fetch('/api/db-status')
       .then(res => res.json())
@@ -948,22 +955,29 @@ export default function App() {
   const bulkBlockProducts = async (block: boolean) => {
     if (selectedProductIds.size === 0) return;
     setIsBulkBlocking(true);
+    const orderedIds = Array.from(selectedProductIds);
     try {
       const response = await fetch('/api/products/bulk-block', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          ids: Array.from(selectedProductIds),
+          ids: orderedIds,
           is_blocked: block,
         })
       });
       if (response.ok) {
-        setProducts(prev => prev.map(p =>
-          selectedProductIds.has(p.id) ? { ...p, is_blocked: block } : p
-        ));
+        const data = await response.json().catch(() => null);
+        if (data && Array.isArray(data.products)) {
+          setProducts(data.products);
+        } else {
+          await loadProducts();
+        }
         setSelectedProductIds(new Set());
         showNotification(block ? 'Ապրանքները բլոկավորված են' : 'Ապրանքները ապաբլոկավորված են');
+      } else {
+        const err = await response.json().catch(() => ({}));
+        alert(err.error || 'Սխալ: Չհաջողվեց կատարել գործողությունը');
       }
     } catch (error) {
       alert('Սխալ: Չհաջողվեց կատարել գործողությունը');
