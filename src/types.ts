@@ -8,6 +8,7 @@ export interface Product {
   category: 'sneakers' | 'slippers';
   min_quantity?: number;
   is_blocked?: boolean;
+  display_order?: number;
 }
 
 export interface CartItem extends Product {
