@@ -236,6 +236,13 @@ a, button {
   touch-action: manipulation;
 }
 
+.product-preview-trigger {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: pan-y;
+}
+
 /* ── active:scale transforms on iOS ── */
 /* Safari needs translateZ(0) to correctly apply scale on :active */
 button:active {
