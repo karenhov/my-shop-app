@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShoppingCart, 
@@ -165,6 +166,46 @@ function SmartImage({
         style={{ ...style, transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
       />
     </div>
+  );
+}
+
+const MOBILE_IMAGE_PREVIEW_DELAY_MS = 350;
+const MOBILE_IMAGE_PREVIEW_CANCEL_DISTANCE_PX = 18;
+
+function MobileLongPressPreview({ isOpen, src, alt }: { isOpen: boolean; src: string; alt: string }) {
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          aria-hidden="true"
+          className="fixed inset-0 z-[120] pointer-events-none flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="w-full max-w-md"
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+          >
+            <div className="overflow-hidden rounded-[2rem] border border-white/15 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+              <SmartImage
+                src={src}
+                alt={alt}
+                className="w-full object-contain bg-black"
+                style={{ height: 'min(72vh, 30rem)' }}
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 }
 
@@ -540,9 +581,87 @@ function CategoryCard({ title, image, onClick }: { title: string, image: string,
 }
 
 function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, key?: any }) {
+  const [isPreviewVisible, setIsPreviewVisible] = useState(false);
+  const previewTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const clearPreviewTimer = () => {
+    if (previewTimerRef.current !== null) {
+      window.clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+  };
+
+  const closePreview = () => {
+    clearPreviewTimer();
+    longPressTriggeredRef.current = false;
+    pointerStartRef.current = null;
+    setIsPreviewVisible(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearPreviewTimer();
+      longPressTriggeredRef.current = false;
+      pointerStartRef.current = null;
+    };
+  }, []);
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== 'touch' || !event.isPrimary) return;
+
+    clearPreviewTimer();
+    longPressTriggeredRef.current = false;
+    pointerStartRef.current = { x: event.clientX, y: event.clientY };
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some mobile browsers may reject pointer capture; long-press still works without it.
+    }
+
+    previewTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      setIsPreviewVisible(true);
+    }, MOBILE_IMAGE_PREVIEW_DELAY_MS);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointerStartRef.current || longPressTriggeredRef.current) return;
+
+    const deltaX = event.clientX - pointerStartRef.current.x;
+    const deltaY = event.clientY - pointerStartRef.current.y;
+    const movedDistance = Math.hypot(deltaX, deltaY);
+
+    if (movedDistance > MOBILE_IMAGE_PREVIEW_CANCEL_DISTANCE_PX) {
+      clearPreviewTimer();
+      pointerStartRef.current = null;
+    }
+  };
+
+  const handlePointerFinish = () => {
+    closePreview();
+  };
+
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (longPressTriggeredRef.current) {
+      event.preventDefault();
+    }
+  };
+
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="bg-gradient-to-b from-white/10 to-white/[0.02] rounded-2xl sm:rounded-3xl border border-white/10 overflow-hidden flex flex-col hover:border-blue-500/30 transition-colors group">
-      <div className="aspect-square overflow-hidden relative bg-zinc-900">
+    <>
+      <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="bg-gradient-to-b from-white/10 to-white/[0.02] rounded-2xl sm:rounded-3xl border border-white/10 overflow-hidden flex flex-col hover:border-blue-500/30 transition-colors group">
+      <div
+        className="aspect-square overflow-hidden relative bg-zinc-900 product-preview-trigger"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerFinish}
+        onPointerCancel={handlePointerFinish}
+        onPointerLeave={handlePointerFinish}
+        onContextMenu={handleContextMenu}
+      >
         <SmartImage src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
         <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/60 backdrop-blur-md px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-bold tracking-widest uppercase border border-white/10">{product.code}</div>
       </div>
@@ -561,7 +680,9 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
           </button>
         </div>
       </div>
-    </motion.div>
+      </motion.div>
+      <MobileLongPressPreview isOpen={isPreviewVisible} src={product.image} alt={product.name} />
+    </>
   );
 }
 
