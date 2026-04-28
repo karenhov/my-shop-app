@@ -944,6 +944,8 @@ async function startServer() {
             res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
             res.setHeader("Pragma", "no-cache");
             res.setHeader("Expires", "0");
+          } else if (filePath.endsWith("sw.js") || filePath.endsWith(".webmanifest")) {
+            res.setHeader("Cache-Control", "no-cache");
           } else if (filePath.match(/\.(js|css)$/)) {
             res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
           } else if (filePath.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/)) {
