@@ -667,7 +667,7 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
       </div>
       <div className="p-3 sm:p-5 flex-1 flex flex-col">
         <h3 className="font-bold text-sm sm:text-lg mb-1 truncate group-hover:text-blue-400 transition-colors">{product.name}</h3>
-        <p className="text-white/40 text-[10px] sm:text-xs mb-2 line-clamp-2">{product.description}</p>
+        <p className="text-white text-[10px] sm:text-xs mb-2 line-clamp-2">{product.description}</p>
         {product.min_quantity && product.min_quantity > 1 && <p className="text-[8px] sm:text-[10px] text-orange-400/80 font-bold mb-3 sm:mb-4 bg-orange-400/10 w-fit px-1.5 py-0.5 rounded-md">ՄԻՆ. ՔԱՆԱԿ: {product.min_quantity}</p>}
         <div className="mt-auto flex flex-col gap-2">
           <p className="text-sm sm:text-xl font-black text-white">{product.price.toLocaleString()} ֏</p>
