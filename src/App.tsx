@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef, FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  ShoppingCart, 
-  Trash2, 
-  Plus, 
-  ChevronLeft, 
-  Package, 
-  Tag, 
-  ClipboardList, 
-  Settings, 
+import {
+  ShoppingCart,
+  Trash2,
+  Plus,
+  ChevronLeft,
+  Package,
+  Tag,
+  ClipboardList,
+  Settings,
   LogOut,
   Search,
   Menu,
@@ -19,7 +19,9 @@ import {
   CheckCircle2,
   Image as ImageIcon,
   Loader2,
-  Share2
+  Share2,
+  Home,
+  Bot
 } from 'lucide-react';
 import { Product, CartItem, PromoCode, Order } from './types';
 import { toPng } from 'html-to-image';
@@ -730,6 +732,99 @@ function AddPromoForm({ onAdd }: { onAdd: (data: any) => void }) {
   );
 }
 
+// ─── Premium iOS-style Mobile Bottom Navigation ───────────────────────────
+function MobileBottomNav({
+  view,
+  setView,
+  cart,
+  setPreviousView,
+  aiOpenRef,
+  onShareOpen,
+}: {
+  view: string;
+  setView: (v: 'home' | 'categories' | 'products' | 'cart' | 'admin') => void;
+  cart: CartItem[];
+  setPreviousView: (v: 'home' | 'categories' | 'products') => void;
+  aiOpenRef: React.MutableRefObject<(() => void) | null>;
+  onShareOpen: () => void;
+}) {
+  const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
+
+  const navigateToCart = () => {
+    if (view !== 'cart' && view !== 'admin') {
+      setPreviousView(view as 'home' | 'categories' | 'products');
+    }
+    setView('cart');
+  };
+
+  const items = [
+    { id: 'home',  label: 'Գլխավոր', icon: <Home size={22} />,        onClick: () => setView('home') },
+    { id: 'share', label: 'Կիսվել',  icon: <Share2 size={22} />,       onClick: onShareOpen },
+    { id: 'ai',    label: 'AI',       icon: <Bot size={22} />,           onClick: () => aiOpenRef.current?.() },
+    { id: 'cart',  label: 'Զամբյուղ',  icon: <ShoppingCart size={22} />, badge: cartCount, onClick: navigateToCart },
+    { id: 'admin', label: 'Ադմին',   icon: <User size={22} />,          onClick: () => setView('admin') },
+  ];
+
+  return (
+    <div
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}
+    >
+      <div
+        className="mx-3 mb-2 rounded-[26px] border border-white/10"
+        style={{
+          background: 'rgba(10,10,10,0.97)',
+          boxShadow: '0 -4px 30px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.06)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+        }}
+      >
+        <div className="flex items-center justify-around px-1 py-2">
+          {items.map((item) => {
+            const isActive = item.id === view || (item.id === 'cart' && view === 'cart');
+            return (
+              <motion.button
+                key={item.id}
+                onClick={item.onClick}
+                whileTap={{ scale: 0.85 }}
+                transition={{ type: 'spring', damping: 20, stiffness: 400 }}
+                className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl relative min-w-[58px]"
+                style={{ color: isActive ? '#f97316' : 'rgba(255,255,255,0.42)' }}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="mobileNavActive"
+                    className="absolute inset-0 rounded-2xl"
+                    style={{ background: 'rgba(249,115,22,0.13)' }}
+                    transition={{ type: 'spring', damping: 26, stiffness: 380 }}
+                  />
+                )}
+                {isActive && (
+                  <motion.div
+                    layoutId="mobileNavDot"
+                    className="absolute -top-[2px] left-1/2 -translate-x-1/2 w-7 h-[3px] rounded-full"
+                    style={{ background: '#f97316' }}
+                    transition={{ type: 'spring', damping: 26, stiffness: 380 }}
+                  />
+                )}
+                <div className="relative z-10">
+                  {item.icon}
+                  {'badge' in item && (item.badge as number) > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 bg-orange-600 text-white text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full leading-none">
+                      {(item.badge as number) > 9 ? '9+' : item.badge}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] font-bold leading-none relative z-10 whitespace-nowrap">{item.label}</span>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState<'home' | 'categories' | 'products' | 'cart' | 'admin'>('home');
   const [previousView, setPreviousView] = useState<'home' | 'categories' | 'products'>('categories');
@@ -767,6 +862,8 @@ export default function App() {
   const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
   const [isBulkBlocking, setIsBulkBlocking] = useState(false);
   const cartSectionRef = useRef<HTMLDivElement>(null);
+  const aiOpenRef = useRef<(() => void) | null>(null);
+  const [mobileShareOpen, setMobileShareOpen] = useState(false);
 
   const optimizeImageUrl = (url: string, width = 400, quality = 80) => {
     if (!url) return '';
@@ -1226,7 +1323,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <nav className="fixed top-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-white/5">
+      <nav className="hidden md:block fixed top-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2">
           {/* Desktop: «Մեծածախ Վաճառք» տառեր */}
           <button onClick={() => setView('home')} className="hidden sm:block text-lg sm:text-xl font-bold tracking-tighter shrink-0">
@@ -1239,7 +1336,7 @@ export default function App() {
           <div className="flex items-center gap-3 sm:gap-6 shrink-0">
             <button onClick={() => setView('categories')} className="hidden sm:block text-sm font-medium text-white/80 hover:text-white transition-colors">Ապրանքներ</button>
             
-            <AIAssistant products={products} />
+            <AIAssistant products={products} openRef={aiOpenRef} />
 
             <button onClick={() => { if (view !== 'cart' && view !== 'admin') setPreviousView(view as 'home' | 'categories' | 'products'); setView('cart'); }} className="relative p-2 hover:bg-white/5 rounded-full transition-colors">
               <ShoppingCart size={20} />
@@ -1256,7 +1353,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="pt-20 pb-10 px-4 max-w-7xl mx-auto">
+      <main className="pt-4 md:pt-20 pb-28 md:pb-10 px-4 max-w-7xl mx-auto">
         <AnimatePresence mode="wait">
           {view === 'home' && (
             <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center">
@@ -1736,6 +1833,72 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* ─── Mobile Bottom Navigation ─── */}
+      <MobileBottomNav
+        view={view}
+        setView={setView}
+        cart={cart}
+        setPreviousView={setPreviousView}
+        aiOpenRef={aiOpenRef}
+        onShareOpen={() => setMobileShareOpen(true)}
+      />
+
+      {/* ─── Share Bottom Sheet (mobile only) ─── */}
+      <AnimatePresence>
+        {mobileShareOpen && (
+          <div className="md:hidden fixed inset-0 z-[60]">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileShareOpen(false)}
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+              className="absolute bottom-0 left-0 right-0 rounded-t-[2rem] p-6"
+              style={{
+                background: 'rgba(12,12,12,0.98)',
+                borderTop: '1px solid rgba(255,255,255,0.1)',
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 24px)',
+              }}
+            >
+              <div className="flex items-center justify-between mb-5">
+                <div className="w-10 h-1 bg-white/20 rounded-full" />
+                <button
+                  onClick={() => setMobileShareOpen(false)}
+                  className="p-1.5 rounded-full"
+                  style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <h3 className="font-black text-base mb-4 flex items-center gap-2">
+                <Share2 size={18} className="text-orange-400" />
+                Կիսվել Զամբյուղով
+              </h3>
+              {cart.length === 0 ? (
+                <div className="text-center py-8 text-white/35">
+                  <ShoppingCart size={32} className="mx-auto mb-3 opacity-40" />
+                  <p className="text-sm font-medium">Ձեր զամբյուղը դատարկ է:</p>
+                </div>
+              ) : (
+                <ShareCartButtons
+                  cartSectionRef={cartSectionRef}
+                  cart={cart}
+                  total={calculateTotal()}
+                  onClearCart={() => { setCart([]); setMobileShareOpen(false); }}
+                />
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       </div>
     </div>
   );
