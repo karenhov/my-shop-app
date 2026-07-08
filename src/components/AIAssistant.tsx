@@ -255,7 +255,7 @@ const getLocalFallbackResponse = (query: string, products: any[]) => {
   return "🤔 Ներողություն, ես չկարողացա գտնել կոնկրետ պատասխան ձեր հարցին։\n\n💡 **Հնարավոր է...**\n• AI համակարգը ժամանակավորապես անհասանելի է\n• Լիմիտը սպառվել է\n\n📞 Խնդրում եմ փորձեք մի փոքր ուշ կամ կապնվեք ադմինիստրատորի հետ։";
 };
 
-export function AIAssistant({ products = [] }: { products?: any[] }) {
+export function AIAssistant({ products = [], openRef }: { products?: any[]; openRef?: React.MutableRefObject<(() => void) | null> }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showBubble, setShowBubble] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -309,6 +309,16 @@ export function AIAssistant({ products = [] }: { products?: any[] }) {
       if (rateLimitTimer.current) clearTimeout(rateLimitTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (openRef) {
+      openRef.current = () => {
+        setShowBubble(false);
+        setIsOpen(true);
+      };
+      return () => { openRef.current = null; };
+    }
+  }, [openRef]);
 
   const handleToggle = () => {
     if (!isOpen && showBubble) {
