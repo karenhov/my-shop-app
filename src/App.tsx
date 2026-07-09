@@ -779,6 +779,15 @@ function MobileBottomNav({
           WebkitBackdropFilter: 'blur(20px)',
         }}
       >
+        {/* Hidden gradient def, reused as the active icon's stroke via url(#navActiveGradient) */}
+        <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+          <defs>
+            <linearGradient id="navActiveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#2563eb" />
+              <stop offset="100%" stopColor="#f97316" />
+            </linearGradient>
+          </defs>
+        </svg>
         <div className="flex items-center justify-around px-1 py-2">
           {items.map((item) => {
             const isActive = item.id === view || (item.id === 'cart' && view === 'cart');
@@ -795,7 +804,7 @@ function MobileBottomNav({
                   <motion.div
                     layoutId="mobileNavActive"
                     className="absolute inset-0 rounded-2xl"
-                    style={{ background: 'rgba(249,115,22,0.13)' }}
+                    style={{ background: 'linear-gradient(90deg, rgba(37,99,235,0.15), rgba(249,115,22,0.15))' }}
                     transition={{ type: 'spring', damping: 26, stiffness: 380 }}
                   />
                 )}
@@ -803,19 +812,27 @@ function MobileBottomNav({
                   <motion.div
                     layoutId="mobileNavDot"
                     className="absolute -top-[2px] left-1/2 -translate-x-1/2 w-7 h-[3px] rounded-full"
-                    style={{ background: '#f97316' }}
+                    style={{ background: 'linear-gradient(90deg, #2563eb, #f97316)' }}
                     transition={{ type: 'spring', damping: 26, stiffness: 380 }}
                   />
                 )}
                 <div className="relative z-10">
-                  {item.icon}
+                  {React.cloneElement(item.icon, {
+                    color: isActive ? 'url(#navActiveGradient) #f97316' : undefined,
+                  })}
                   {'badge' in item && (item.badge as number) > 0 && (
                     <span className="absolute -top-1.5 -right-2.5 bg-orange-600 text-white text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full leading-none">
                       {(item.badge as number) > 9 ? '9+' : item.badge}
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] font-bold leading-none relative z-10 whitespace-nowrap">{item.label}</span>
+                <span
+                  className={`text-[10px] font-bold leading-none relative z-10 whitespace-nowrap ${
+                    isActive ? 'bg-gradient-to-r from-blue-600 to-orange-500 bg-clip-text text-transparent' : ''
+                  }`}
+                >
+                  {item.label}
+                </span>
               </motion.button>
             );
           })}
