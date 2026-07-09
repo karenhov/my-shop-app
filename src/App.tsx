@@ -777,7 +777,7 @@ function MobileBottomNav({
   const items = [
     { id: 'home',  label: 'Գլխավոր', icon: <Home size={22} />,        onClick: () => setView('home') },
     { id: 'share', label: 'Կիսվել',  icon: <Share2 size={22} />,       onClick: onShareOpen },
-    { id: 'ai',    label: 'AI',       icon: <Bot size={22} />,           onClick: () => aiOpenRef.current?.() },
+    { id: 'ai',    label: 'ԱԻ',       icon: <Bot size={22} />,           onClick: () => aiOpenRef.current?.() },
     { id: 'cart',  label: 'Զամբյուղ',  icon: <ShoppingCart size={22} />, badge: cartCount, onClick: navigateToCart },
     { id: 'admin', label: 'Ադմին',   icon: <User size={22} />,          onClick: () => setView('admin') },
   ];
@@ -1425,7 +1425,7 @@ export default function App() {
                 <div className="w-full max-w-6xl mt-24 mb-20 px-2">
                   <div className="flex items-center justify-between mb-12">
                     <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Թոփ Ապրանքներ</h2>
-                    <button onClick={() => setView('categories')} className="text-sm font-bold text-blue-500 hover:text-blue-400 transition-colors">Տեսնել→</button>
+                    <button onClick={() => setView('categories')} className="text-sm font-bold text-blue-500 hover:text-blue-400 transition-colors">Տեսնել բոլորը →</button>
                   </div>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                     {products.filter(p => !p.is_blocked).slice(0, 4).map(product => (
