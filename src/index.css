@@ -336,3 +336,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
+
+/* ── Mobile-only background: soften the flat black into a subtle
+   multi-tone gradient using the site's own accent colors (blue-600 / orange-500),
+   the same hues already used in buttons, glows and gradients across the app.
+   Desktop keeps the original pure black (bg-black) untouched. ── */
+@media (max-width: 767px) {
+  body {
+    background-color: #0a0a0f;
+    background-image:
+      radial-gradient(ellipse 90% 40% at 50% 0%, rgba(37, 99, 235, 0.16), transparent 60%),
+      radial-gradient(ellipse 70% 45% at 100% 100%, rgba(249, 115, 22, 0.08), transparent 60%),
+      linear-gradient(180deg, #0b0e1a 0%, #0a0a10 45%, #0a0a0f 100%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+}
