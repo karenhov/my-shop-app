@@ -10,8 +10,7 @@ interface Message {
   content: string;
 }
 
-// ========== ENHANCED LOCAL FAQ DATABASE ==========
-// Այս բազան օգտագործվում է երբ API-ն հասանելի չէ կամ լիմիտը լրացել է
+// ========== LOCAL FAQ DATABASE (AI օգնականի միակ պատասխանների աղբյուրը) ==========
 const FAQ_DATA = [
   {
     keywords: ['բարև', 'ողջույն', 'hi', 'hello', 'barev','barev cez'],
@@ -23,13 +22,13 @@ const FAQ_DATA = [
   },
   {
     keywords: ['օգնություն', 'help', 'ognutyun', 'ինչպես'],
-    answer: "ℹ️ Ես կարող եմ օգնել ձեզ.\n\n🛒 **Զամբյուղի** և պատվերի հետ\n📦 **Ապրանքների** մասին տեղեկություններ\n🔍 **Կայքում նավիգացիա**\n💬 **Կապի** միջոցներ\n\nՍեղմեք վերևի մենյուի **«ԲԱԺԻՆՆԵՐ»** կոճակը՝ տեսականին դիտելու համար։"
+    answer: "ℹ️ Ես կարող եմ օգնել ձեզ.\n\n🛒 **Զամբյուղի** և պատվերի հետ\n📦 **Ապրանքների** մասին տեղեկություններ\n🔍 **Կայքում նավիգացիա**\n💬 **Կապի** միջոցներ\n\nԳլխավոր էջում սեղմեք **«ԴԻՏԵԼ ՏԵՍԱԿԱՆԻՆ»** կոճակը՝ տեսականին դիտելու համար։"
   },
 
   // ============ ԶԱՄԲՅՈՒՂ ============
   {
     keywords: ['զամբյուղ', 'ինչպես ուղղարկել ապրանք', 'inchpes @ntrel apranq', 'ավելացնել', 'որտեղ է զամբյուղը', 'vortex e zambyux@', 'zambyux', 'զամբուղ'],
-    answer: "🛒 **Զամբյուղի** օգտագործում.\n\n1️⃣ Ապրանք ընտրելու համար սեղմեք **«ՈՒՂՂԱՐԿԵԼ ԶԱՄԲՅՈՒՂ»** կոճակը\n2️⃣ Զամբյուղը գտնվում է վերևի աջ անկյունում 🛒\n3️⃣ Այնտեղ կարող եք՝\n   • Փոխել քանակները **+ / -** կոճակներով\n   • Ջնջել ապրանքները 🗑️\n   • Դիտել ընդհանուր գումարը"
+    answer: "🛒 **Զամբյուղի** օգտագործում.\n\n1️⃣ Ապրանք ընտրելու համար սեղմեք **«ՈՒՂՂԱՐԿԵԼ ԶԱՄԲՅՈՒՂ»** կոճակը\n2️⃣ Զամբյուղը գտնում եք՝\n   💻 Համակարգչում՝ վերևի աջ անկյունում 🛒\n   📱 Հեռախոսում՝ ներքևի նավիգացիայի **«Զամբյուղ»** կոճակով\n3️⃣ Այնտեղ կարող եք՝\n   • Փոխել քանակները **+ / -** կոճակներով\n   • Ջնջել ապրանքները 🗑️\n   • Դիտել ընդհանուր գումարը"
   },
   {
     keywords: ['քանակ', 'qanaq', 'ավելացնել քանակ', 'պակասեցնել', 'plus minus', 'քանի հատ', 'qani hat'],
@@ -83,6 +82,22 @@ const FAQ_DATA = [
     keywords: ['զեղչ', 'պրոմոկոդ', 'promo', 'discount', 'արժեղչում', 'promokod', 'zelch', 'zeghch', 'կիրառել'],
     answer: "🎫 **Պրոմոկոդի** օգտագործում.\n\n1️⃣ Պրոմոկոդը ստանալ ադմինիստրատորից\n2️⃣ Մտեք **ԶԱՄԲՅՈՒՂ** բաժին\n3️⃣ Գրեք պրոմոկոդը **«Պրոմոկոդ»** դաշտում\n4️⃣ Սեղմեք **«ԿԻՐԱՌԵԼ»**\n\n✨ Զեղչը ավտոմատ հաշվարկվելու է ընդհանուր գումարից։"
   },
+  {
+    keywords: ['որտեղից ստանալ պրոմոկոդ', 'vortex ic stanal promokod', 'ինչպես ստանալ պրոմոկոդ', 'ունե՞ք զեղչ', 'unek zelch', 'kadr unenq zelchi', 'ունեք արդյոք զեղչեր'],
+    answer: "🎁 **Պրոմոկոդ ստանալը**.\n\nՊրոմոկոդները տրամադրվում են անմիջապես **ադմինիստրատորի** կողմից (օր.՝ մշտական հաճախորդների կամ խոշոր պատվերների համար)։\n\n📞 Հարցրեք ուղիղ ադմինիստրատորին **Viber/WhatsApp/Telegram**-ով՝ զամբյուղը կիսելիս։"
+  },
+  {
+    keywords: ['նվազագույն քանակ', 'min quantity', 'նվազագույն պատվեր', 'minimum order', 'qani hat glxavor', 'նվազագույնը քանի հատ', 'nvazagujn qanak'],
+    answer: "📊 **Նվազագույն պատվերի քանակ**.\n\nՈրոշ ապրանքների համար կարող է սահմանված լինել **նվազագույն քանակ** (նշված է ապրանքի քարտի վրա, եթե առկա է)։\n\n💡 Եթե որևէ ապրանքի համար նման նշում չկա՝ կարող եք պատվիրել ցանկացած քանակով։\n\n📞 Ստույգ տեղեկության համար կապնվեք ադմինիստրատորի հետ։"
+  },
+  {
+    keywords: ['ապրանքը չկա', 'ինչու չկա', 'ապրանքը դուրս է եկել', 'apranqy chka', 'out of stock', 'sold out', 'ապրանքը հեռացվել է', 'chka vacharqum'],
+    answer: "📭 **Ապրանքը ցանկում չէ**.\n\nԱպրանքների ցանկը թարմացվում է ադմինիստրատորի կողմից՝ որոշ մոդելներ կարող են ժամանակավորապես **հանված** լինել կայքից։\n\n🔄 Փորձեք թարմացնել էջը (F5) կամ մի փոքր ուշ նորից ստուգել։\n\n📞 Կոնկրետ մոդելի հասանելիության համար կապնվեք ադմինիստրատորի հետ։"
+  },
+  {
+    keywords: ['գրանցում', 'պետք ա գրանցվել', 'registration', 'account', 'հաշիվ', 'grancum petq a', 'պրոֆիլ', 'profil'],
+    answer: "🔓 **Գրանցում պետք չէ**.\n\nԱպրանքներ դիտելու և պատվեր ձևակերպելու համար **գրանցում կամ հաշիվ պետք չէ**՝ պարզապես ընտրեք, ավելացրեք զամբյուղ և հաստատեք պատվերը։\n\n🔐 Մուտք/գաղտնաբառ պահանջվում է միայն **«ԱԴՄԻՆ»** բաժնի համար, որը նախատեսված է կայքի կառավարման համար։"
+  },
 
   // ============ ԱՊՐԱՆՔՆԵՐ / ՏԵՍԱԿԱՆԻ ============
   {
@@ -129,7 +144,7 @@ const FAQ_DATA = [
   // ============ ՆԱՎԻԳԱՑԻԱ ============
   {
     keywords: ['բջջային', 'mobile', 'հեռախոս', 'նավիգացիա', 'մենյու', 'bjjayin', 'navigacia', 'menyu'],
-    answer: "📱 **Կայքի նավիգացիա**.\n\n⬇️ Ներքևի նավիգացիոն տողում կան՝\n\n🏠 **ԳԼԽԱՎՈՐ** — Հիմնական էջ\n📂 **ԲԱԺԻՆՆԵՐ** — Տեսականի\n🛒 **ԶԱՄԲՅՈՒՂ** — Ձեր պատվերները\n👤 **ԱԴՄԻՆ** — Մուտք (միայն ադմինի համար)\n\nՕգտագործեք այս կոճակները՝ հեշտ նավիգացիայի համար։"
+    answer: "📱 **Կայքի նավիգացիա**.\n\n⬇️ Ներքևի նավիգացիոն տողում կան՝\n\n🏠 **ԳԼԽԱՎՈՐ** — Հիմնական էջ\n📤 **ԿԻՍՎԵԼ** — Զամբյուղը Viber/WhatsApp/Telegram-ով ուղարկել\n🤖 **ԱԻ** — AI օգնականը բացել\n🛒 **ԶԱՄԲՅՈՒՂ** — Ձեր ընտրած ապրանքները\n👤 **ԱԴՄԻՆ** — Մուտք (միայն ադմինի համար)\n\n💡 Տեսականին դիտելու համար գլխավոր էջում սեղմեք **«ԴԻՏԵԼ ՏԵՍԱԿԱՆԻՆ»**։"
   },
   {
     keywords: ['գլխավոր', 'glxavor', 'home', 'home page', 'glxavor ej', 'հիմնական էջ', 'him@nakananej'],
@@ -137,7 +152,7 @@ const FAQ_DATA = [
   },
   {
     keywords: ['բաժիններ', 'bajinner', 'categories', 'sections', 'menu', 'разделы'],
-    answer: "📂 **Բաժիններ**.\n\nԲաժիններ մենյուում կան՝\n\n👟 **ՍՊՈՐՏԱՅԻՆ ԿՈՇԻԿՆԵՐ** — սեղմեք «ԴԻՏԵԼ +»\n🩴 **ՀՈՂԱԹԱՓԵՐ** — սեղմեք «ԴԻՏԵԼ +»\n\n💡 Ներքևի մենյուի **«ԲԱԺԻՆՆԵՐ»** կոճակով կհայտնվեք այս էջում։"
+    answer: "📂 **Բաժիններ**.\n\nԿայքն ունի երկու հիմնական բաժին՝\n\n👟 **ՍՊՈՐՏԱՅԻՆ ԿՈՇԻԿՆԵՐ** — սեղմեք «ԴԻՏԵԼ +»\n🩴 **ՀՈՂԱԹԱՓԵՐ** — սեղմեք «ԴԻՏԵԼ +»\n\n💡 Այս էջին հասնելու համար՝ գլխավոր էջում սեղմեք **«ԴԻՏԵԼ ՏԵՍԱԿԱՆԻՆ»** կոճակը (կամ համակարգչում՝ վերևի **«Ապրանքներ»** հղումը)։"
   },
   {
     keywords: ['ադմին', 'admin', 'administrator', 'ادمین', 'ադմինիստրատոր', 'administratori'],
@@ -150,20 +165,16 @@ const FAQ_DATA = [
 
   // ============ ԿԱՊ / SOCIAL ============
   {
-    keywords: ['կիսվել', 'ուղղարկել հավելվածով', 'kisvel zambyuxov', 'kisvel zambjuxov', 'որտեղից կիսվել', 'vortexic kisvel', '', 'որտեղ է կիսվել զամբյուղը', 'որտեղից կիսվել վիբեր տելեգրամ', 'vortex e viber'],
-    answer: "՝\n\n💜 **Viber**\n💚 **WhatsApp**\n🔵 **Telegram**\n\nԿոճակները գտնվում են կայքի **վերևի ձախ** հատվածում։"
-  },
-  {
     keywords: ['viber', 'вайбер', 'vajber', 'viber number', 'viber@ vorinj e'],
-    answer: "💜 **Viber**-ով կապ.\n\nՍեղմեք կայքի վերևի **Viber** (մանուշակագույն) կոճակը կամ **Զամբյուղի** «ԿԻՍՎԵԼ ԶԱＭՅՈՒՂՈՎ» բաժնի Viber կոճակը։\n\n✅ Կարող եք ուղղակիորեն ուղարկել ձեր ընտրած ապրանքների ցանկը։"
+    answer: "💜 **Viber**-ով կապ.\n\nԶամբյուղում ավելացրեք գոնե 1 ապրանք, ապա սեղմեք **«ԿԻՍՎԵԼ»** բաժնի Viber կոճակը։\n\n✅ Ձեր ընտրած ապրանքների ցանկն ու նկարը ուղիղ կուղարկվի ադմինիստրատորին։"
   },
   {
     keywords: ['telegram', 'телеграм', 'telegram@ vorinj e', 'телеграм канал'],
-    answer: "🔵 **Telegram**-ով կապ.\n\nՍեղմեք կայքի վերևի **Telegram** (կապույտ) կոճակը կամ **Զամբյուղի** «ԿԻՍՎԵԼ ԶԱＭՅՈՒՂՈՎ» բաժնի Telegram կոճակը։\n\n✅ Հարմար է զամբյուղի պատկերն ու ցանկը ուղարկելու համար։"
+    answer: "🔵 **Telegram**-ով կապ.\n\nԶամբյուղում ավելացրեք գոնե 1 ապրանք, ապա սեղմեք **«ԿԻՍՎԵԼ»** բաժնի Telegram կոճակը։\n\n✅ Հարմար է զամբյուղի պատկերն ու ցանկը ուղարկելու համար։"
   },
   {
     keywords: ['whatsapp', 'вацап', 'vacap', 'whatsapp@ vorinj e'],
-    answer: "💚 **WhatsApp**-ով կապ.\n\nՍեղմեք կայքի վերևի **WhatsApp** (կանաչ) կոճակը կամ **Զամբյուղի** «ԿԻՍՎԵԼ ԶԱＭՅՈՒՂՈՎ» բաժնի WhatsApp կոճակը։\n\n✅ Հարմար է ապրանքների ցանկն ու ընդհանուր գումարը ուղարկելու համար։"
+    answer: "💚 **WhatsApp**-ով կապ.\n\nԶամբյուղում ավելացրեք գոնե 1 ապրանք, ապա սեղմեք **«ԿԻՍՎԵԼ»** բաժնի WhatsApp կոճակը։\n\n✅ Հարմար է ապրանքների ցանկն ու ընդհանուր գումարը ուղարկելու համար։"
   },
 
   // ============ ԱՌԱՔՈՒՄ ============
@@ -222,11 +233,19 @@ const FAQ_DATA = [
   {
     keywords: ['ով եք', 'ov eq', 'who are you', 'ինչ ես', 'inch es', 'EdgSport', 'edgsport', 'մեր մասին', 'mer masin', 'about us'],
     answer: "🏪 **EdgSport-ի մասին**.\n\n**EdgSport**-ը մեծածախ սպորտային կոշիկների և հողաթափերի **առցանց խանութ** է։\n\n✅ Բարձրորակ ապրանքներ\n✅ Մեծածախ գներ\n✅ Արագ առաքում Հայաստանով\n\n📞 Կապ՝ **Viber / WhatsApp / Telegram**"
+  },
+  {
+    keywords: ['ուզում եմ ուղղակի հարցնել', 'հարց ունեմ', 'question without order', 'uzum em harcnel', 'ուղիղ մարդու հետ խոսել', 'human support', 'canonakan hartsum'],
+    answer: "💬 **Ուղիղ հարց ադմինիստրատորին**.\n\nԵս կարող եմ պատասխանել կայքի օգտագործման հարցերին անմիջապես այստեղ։\n\n📞 Իսկ եթե ուզում եք **կենդանի մարդու** հետ խոսել՝ ավելացրեք ցանկացած ապրանք զամբյուղ և օգտվեք **Viber/WhatsApp/Telegram** «ԿԻՍՎԵԼ» կոճակներից՝ ուղիղ կապ հաստատելու համար։"
+  },
+  {
+    keywords: ['վստահելի է', 'իրական խանութ է', 'is it legit', 'real store', 'vstaheli e', 'xabvac chi lini', 'չեմ խաբվի'],
+    answer: "🛡️ **Կայքի մասին վստահություն**.\n\n**EdgSport**-ը իրական մեծածախ վաճառքի կայք է՝ ապրանքների նկարներով, կոդերով և գներով։\n\n✅ Պատվերը հաստատվում է միայն ձեր տվյալները լրացնելուց և ադմինիստրատորի հետ **Viber/WhatsApp/Telegram**-ով կապ հաստատելուց հետո՝ այնպես որ կարող եք ամեն ինչ նախապես ճշտել։"
   }
 ];
 
 // Ավելի խելացի LOCAL search функция
-const getLocalFallbackResponse = (query: string, products: any[]) => {
+const getAssistantResponse = (query: string, products: any[]) => {
   const lowerQuery = query.toLowerCase().trim();
   
   // Առաջին՝ ստուգել FAQ-ում
@@ -266,24 +285,7 @@ export function AIAssistant({ products = [], openRef }: { products?: any[]; open
   ]);
   const [userMessage, setUserMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [apiAvailable, setApiAvailable] = useState(true); // API հասանելիության ստատուս
-  const [isRateLimited, setIsRateLimited] = useState(false); // Rate limit ստատուս
-  const rateLimitUntil = useRef<number>(0); // Rate limit-ի ավարտի timestamp
-  const rateLimitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  // Rate limit-ի ավտոմատ վերականգնում
-  const startRateLimitTimer = (waitMs = 60_000) => {
-    if (rateLimitTimer.current) return; // Արդեն աշխատում է
-    rateLimitUntil.current = Date.now() + waitMs;
-    setIsRateLimited(true);
-    rateLimitTimer.current = setTimeout(() => {
-      setIsRateLimited(false);
-      rateLimitUntil.current = 0;
-      rateLimitTimer.current = null;
-    }, waitMs);
-  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -301,13 +303,6 @@ export function AIAssistant({ products = [], openRef }: { products?: any[]; open
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-      if (rateLimitTimer.current) clearTimeout(rateLimitTimer.current);
-    };
   }, []);
 
   useEffect(() => {
@@ -332,113 +327,22 @@ export function AIAssistant({ products = [], openRef }: { products?: any[]; open
     localStorage.setItem('ai_assistant_welcomed', 'true');
   };
 
-  const handleSend = async (isRetry = false, retryMessage?: string) => {
-    if (!userMessage.trim() && !isRetry) return;
-    if (isLoading && !isRetry) return;
+  const handleSend = async () => {
+    if (!userMessage.trim() || isLoading) return;
 
-    const inputMessage = isRetry ? (retryMessage ?? '') : userMessage.trim();
-    if (!inputMessage) return;
-    
-    if (!isRetry) {
-      setIsLoading(true);
-      setUserMessage('');
-      setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
-    }
+    const inputMessage = userMessage.trim();
+    setIsLoading(true);
+    setUserMessage('');
+    setMessages(prev => [...prev, { role: 'user', content: inputMessage }]);
 
-    // ========== ՓՈՐՁ API-ի հետ աշխատել (server proxy) ==========
-    try {
-      // Rate limit — ստուգել արդյոք 60 վրկ-ն անցել է
-      if (isRateLimited) {
-        throw new Error("RATE_LIMIT");
-      }
+    // Փոքր, բնական հապաղում՝ որպեսզի «Մտածում եմ...» անիմացիան երևա
+    // (իրական մշակում չկա՝ ամեն ինչ ընթանում է local Հ/Հ բազայից)
+    await new Promise(resolve => setTimeout(resolve, 450 + Math.random() * 350));
 
-      // Եթե API-ն մշտապես անհասանելի է (auth error և նմանատիպ)
-      if (!apiAvailable) {
-        throw new Error("API unavailable");
-      }
+    const response = getAssistantResponse(inputMessage, products);
 
-      const productData = products.slice(0, 10).map(p => ({
-        name: p.name,
-        price: p.price,
-        code: p.code,
-        category: p.category
-      }));
-
-      const systemInstruction = `Դուք "EdgSport" խանութի պրոֆեսիոնալ AI օգնականն եք: \nՁեր նպատակն է տալ ԿՈՆԿՐԵՏ և ՃՇԳՐԻՏ պատասխաններ կայքի օգտագործման վերաբերյալ:\n\nԿԱՅՔԻ ՆՊԱՏԱԿԸ:\nԿայքը ստեղծված է նրա համար, որպեսզի ձեր կողմից արդեն իսկ հավանած տեսականիները լինեն պատրաստ նախօրոք:\n\nԿԱՌՈՒՑՎԱԾՔ:\n1. **Նավիգացիա**: Գլխավոր էջում սեղմելով **"Դիտել տեսականին"** կոճակը կտեսնեք **"Սպորտային կոշիկներ"** և **"Հողաթափեր"** բաժինները:\n2. **Ապրանքի ընտրություն**: Սեղմեք **"Ուղղարկել զամբյուղ"** կոճակը:\n3. **Զամբյուղ**: Կայքի ամենավերևի **աջ անկյունում**:\n4. **Կիսվել**: Viber, WhatsApp, Telegram կոճակներ՝ առնվազն մեկ ապրանք ունենալու դեպքում:\n5. **Պատվեր**: Լրացրեք դաշտերը, սեղմեք **"ՀԱՍՏԱՏԵԼ ՊԱՏՎԵՐԸ"**:\n6. **Պրոմոկոդ**: Ադմինից ստանալ:\n\nԱհա որոշ ապրանքներ կայքից:\n\${JSON.stringify(productData)}\n\nԽոսեք միայն հայերենով: Եղեք շատ հստակ:`;
-
-      const historyMessages = [...messages, { role: 'user', content: inputMessage }];
-
-      // AbortController — stream cancel
-      abortRef.current = new AbortController();
-
-      // API key-ը server-side է — browser-ում տեսանելի չէ
-      const response = await fetch('/api/ai-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: abortRef.current.signal,
-        body: JSON.stringify({ messages: historyMessages, systemInstruction }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          const data = await response.json().catch(() => ({}));
-          const retryAfter = data.retryAfter ?? 60;
-          throw Object.assign(new Error("RATE_LIMIT"), { retryAfter });
-        }
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      let fullText = '';
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunkText = decoder.decode(value, { stream: true });
-        fullText += chunkText;
-        setMessages(prev => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: 'assistant', content: fullText };
-          return updated;
-        });
-      }
-
-      // Եթե API-ն աշխատեց՝ նշանակել որ հասանելի է
-      setApiAvailable(true);
-
-    } catch (error: any) {
-      // ========== ERROR HANDLING - ՍԽԱԼՆԵՐԻ ՄՇԱԿՈՒՄ ==========
-      
-      // Մաքրել նախորդ անկատար հաղորդագրությունը
-      setMessages(prev => prev.filter(m => m.content !== ''));
-      
-      if ((import.meta as any).env?.DEV) {
-        console.warn('AI Assistant: Falling back to local FAQ', error?.message);
-      }
-
-      let localResponse: string;
-
-      if (error?.message === "RATE_LIMIT") {
-        const waitMs = ((error?.retryAfter ?? 60) + 2) * 1000; // +2 վրկ buffer
-        startRateLimitTimer(waitMs);
-        const secondsLeft = Math.ceil(waitMs / 1000);
-        localResponse = `⏳ **AI-ի անվճար լիմիտը ժամանակավորապես լրացել է։**\nՄոտ ${secondsLeft} վրկ հետո ավտոմատ կվերականգնի։\n\n` + getLocalFallbackResponse(inputMessage, products);
-      } else {
-        // Այլ error — API-ն անջատել (auth error, server down)
-        setApiAvailable(false);
-        localResponse = getLocalFallbackResponse(inputMessage, products);
-      }
-      
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: localResponse
-      }]);
-    } finally {
-      setIsLoading(false);
-      abortRef.current = null;
-    }
+    setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+    setIsLoading(false);
   };
 
   return (
@@ -508,9 +412,7 @@ export function AIAssistant({ products = [], openRef }: { products?: any[]; open
                   </div>
                   <div>
                     <h3 className="font-bold text-sm">AI Օգնական</h3>
-                    <p className="text-[10px] opacity-80">
-                      {isRateLimited ? '⏳ Վերականգնվում է...' : apiAvailable ? 'Միշտ պատրաստ օգնելու' : '💾 Offline ռեժիմ'}
-                    </p>
+                    <p className="text-[10px] opacity-80">Միշտ պատրաստ oգնելու</p>
                   </div>
                 </div>
                 <button 
