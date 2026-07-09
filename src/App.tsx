@@ -815,7 +815,7 @@ function MobileBottomNav({
                 whileTap={{ scale: 0.85 }}
                 transition={{ type: 'spring', damping: 20, stiffness: 400 }}
                 className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl relative min-w-[58px]"
-                style={{ color: isActive ? '#f97316' : 'rgba(255,255,255,0.42)' }}
+                style={{ color: isActive ? '#f97316' : 'rgba(255,255,255,0.85)' }}
               >
                 {isActive && (
                   <motion.div
@@ -838,8 +838,8 @@ function MobileBottomNav({
                     color: isActive ? 'url(#navActiveGradient) #f97316' : undefined,
                   })}
                   {'badge' in item && (item.badge as number) > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 bg-orange-600 text-white text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full leading-none">
-                      {(item.badge as number) > 9 ? '9+' : item.badge}
+                    <span className="absolute -top-1.5 -right-2.5 bg-orange-600 text-white text-[9px] font-black min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full leading-none">
+                      {(item.badge as number) > 99 ? '99+' : item.badge}
                     </span>
                   )}
                 </div>
@@ -1448,17 +1448,22 @@ export default function App() {
             <motion.div key="products" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="relative">
               <div className="flex flex-col items-center gap-4 mb-8">
                 <div className="flex items-center w-full gap-2 sm:gap-4">
-                  <button onClick={() => setView('categories')} className="p-1.5 sm:p-2 hover:bg-white/5 rounded-full shrink-0">
-                    <ChevronLeft size={16} className="sm:hidden" />
-                    <ChevronLeft size={24} className="hidden sm:block" />
+                  <button
+                    onClick={() => setView('categories')}
+                    className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:bg-white/10 shrink-0"
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}
+                  >
+                    <ChevronLeft size={16} />
+                    <span className="hidden sm:inline">Վերադառնալ</span>
+                    <span className="sm:hidden">Հետ</span>
                   </button>
                   <div className="flex items-center justify-between w-full">
-                    <h2 className="text-[13px] sm:text-3xl font-bold uppercase tracking-tight leading-tight">{category === 'sneakers' ? 'Սպորտային կոշիկներ' : 'Հողաթափեր'}</h2>
+                    <h2 className="text-xl sm:text-3xl font-bold uppercase tracking-tight leading-tight">{category === 'sneakers' ? 'Սպորտային կոշիկներ' : 'Հողաթափեր'}</h2>
                   </div>
                 </div>
                 <div className="relative w-full max-w-md">
-                  <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-white/40" size={13} />
-                  <input type="text" placeholder="Փնտրել ապրանք..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl pl-8 sm:pl-12 pr-4 py-2 sm:py-3 text-[10px] sm:text-base outline-none focus:border-blue-500 transition-colors placeholder:text-[9px] sm:placeholder:text-base" />
+                  <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-white/40" size={16} />
+                  <input type="text" placeholder="Փնտրել ապրանք..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl pl-9 sm:pl-12 pr-4 py-2 sm:py-3 text-sm sm:text-base outline-none focus:border-blue-500 transition-colors placeholder:text-sm sm:placeholder:text-base" />
                 </div>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
@@ -1597,14 +1602,14 @@ export default function App() {
             <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {!adminAuth ? (
                 <div className="max-w-[220px] sm:max-w-sm mx-auto min-h-[60vh] sm:min-h-0 py-0 sm:py-20 flex flex-col justify-center sm:block">
-                  <h2 className="text-lg sm:text-2xl font-bold mb-5 sm:mb-6 text-center tracking-widest uppercase">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6 text-center tracking-widest uppercase">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
                   <form onSubmit={(e) => { e.preventDefault(); handleAdminLogin(adminPassInput); }} autoComplete="off" className="space-y-3 sm:space-y-4">
                     <input 
                       type="password" 
                       placeholder="Գաղտնաբառ" 
                       value={adminPassInput} 
                       onChange={(e) => setAdminPassInput(e.target.value)} 
-                      className="w-full bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-3 sm:px-6 py-2 sm:py-4 text-sm sm:text-base outline-none focus:border-blue-500 placeholder:text-sm sm:placeholder:text-base" 
+                      className="w-full bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base outline-none focus:border-blue-500 placeholder:text-sm sm:placeholder:text-base" 
                       autoComplete="off"
                       autoCorrect="off"
                       autoCapitalize="off"
@@ -1622,7 +1627,7 @@ export default function App() {
                         <ChevronLeft size={16} />
                         <span>Վերադառնալ</span>
                       </button>
-                      <button type="submit" disabled={isLoggingIn} className="w-full sm:flex-1 py-2 sm:py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-xl sm:rounded-2xl font-bold sm:font-black text-xs sm:text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
+                      <button type="submit" disabled={isLoggingIn} className="w-full sm:flex-1 py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-xl sm:rounded-2xl font-black text-base sm:text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
                     </div>
                   </form>
                 </div>
