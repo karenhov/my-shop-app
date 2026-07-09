@@ -1596,35 +1596,33 @@ export default function App() {
           {view === 'admin' && (
             <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {!adminAuth ? (
-                <div className="max-w-[220px] sm:max-w-sm mx-auto py-10 sm:py-20">
-                  <h2 className="text-[12px] sm:text-2xl font-bold mb-5 sm:mb-6 text-center tracking-widest uppercase">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
+                <div className="max-w-[220px] sm:max-w-sm mx-auto min-h-[60vh] sm:min-h-0 py-0 sm:py-20 flex flex-col justify-center sm:block">
+                  <h2 className="text-lg sm:text-2xl font-bold mb-5 sm:mb-6 text-center tracking-widest uppercase">ԱԴՄԻՆ ՄՈՒՏՔ</h2>
                   <form onSubmit={(e) => { e.preventDefault(); handleAdminLogin(adminPassInput); }} autoComplete="off" className="space-y-3 sm:space-y-4">
                     <input 
                       type="password" 
                       placeholder="Գաղտնաբառ" 
                       value={adminPassInput} 
                       onChange={(e) => setAdminPassInput(e.target.value)} 
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 sm:px-6 py-2 sm:py-4 text-[10px] sm:text-base outline-none focus:border-blue-500 placeholder:text-[9px] sm:placeholder:text-base" 
+                      className="w-full bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-3 sm:px-6 py-2 sm:py-4 text-sm sm:text-base outline-none focus:border-blue-500 placeholder:text-sm sm:placeholder:text-base" 
                       autoComplete="off"
                       autoCorrect="off"
                       autoCapitalize="off"
                       spellCheck="false"
                       data-form-type="other"
                     />
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      {/* Հետ կոճակ — ձախ կողմ */}
+                    <div className="flex items-center justify-center gap-2 sm:gap-3">
+                      {/* Հետ կոճակ — միայն desktop-ում, մոբայլում ջնջված է */}
                       <button
                         type="button"
                         onClick={() => setView('home')}
-                        className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-2 sm:py-4 rounded-2xl font-bold text-[9px] sm:text-sm transition-all active:scale-95 hover:bg-white/10 shrink-0"
+                        className="hidden sm:flex items-center gap-1.5 px-4 py-4 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:bg-white/10 shrink-0"
                         style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}
                       >
-                        <ChevronLeft size={12} className="sm:hidden" />
-                        <ChevronLeft size={16} className="hidden sm:block" />
-                        <span className="hidden sm:inline">Վերադառնալ</span>
-                        <span className="sm:hidden">Հետ</span>
+                        <ChevronLeft size={16} />
+                        <span>Վերադառնալ</span>
                       </button>
-                      <button type="submit" disabled={isLoggingIn} className="flex-1 py-2 sm:py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-2xl font-black text-[10px] sm:text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
+                      <button type="submit" disabled={isLoggingIn} className="w-full sm:flex-1 py-2 sm:py-4 bg-gradient-to-r from-blue-600 to-orange-500 rounded-xl sm:rounded-2xl font-bold sm:font-black text-xs sm:text-lg shadow-xl shadow-blue-500/20 disabled:opacity-50">{isLoggingIn ? 'ՄՈՒՏՔ...' : 'ՄՈՒՏՔ'}</button>
                     </div>
                   </form>
                 </div>
