@@ -337,12 +337,18 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* ── Mobile-only background: soften the flat black into a subtle
-   multi-tone gradient using the site's own accent colors (blue-600 / orange-500),
-   the same hues already used in buttons, glows and gradients across the app.
-   Desktop keeps the original pure black (bg-black) untouched. ── */
+/* ── App background wrapper (replaces bg-black on the site's root div,
+   which is the element that actually paints the visible page background —
+   it sits above <body> and covers the full viewport). Desktop stays
+   pure black; mobile gets a softened gradient using the site's own
+   accent colors (blue-600 / orange-500), the same hues already used
+   in buttons, glows and gradients across the app. ── */
+.app-bg-root {
+  background-color: #000000;
+}
+
 @media (max-width: 767px) {
-  body {
+  .app-bg-root {
     background-color: #0a0a0f;
     background-image:
       radial-gradient(ellipse 90% 40% at 50% 0%, rgba(37, 99, 235, 0.16), transparent 60%),
