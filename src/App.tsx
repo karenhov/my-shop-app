@@ -225,11 +225,12 @@ function ViberIcon({ size = 24 }: { size?: number }) {
 }
 
 // ---- Share Cart via Viber / WhatsApp / Telegram ----
-function ShareCartButtons({ cartSectionRef, cart, total, onClearCart }: {
+function ShareCartButtons({ cartSectionRef, cart, total, onClearCart, setView }: {
   cartSectionRef: React.RefObject<HTMLDivElement>,
   cart: CartItem[],
   total: number,
   onClearCart: () => void,
+  setView?: (v: 'home' | 'categories' | 'products' | 'cart' | 'admin') => void,
 }) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
@@ -237,13 +238,29 @@ function ShareCartButtons({ cartSectionRef, cart, total, onClearCart }: {
   if (cart.length === 0) return null;
 
   const captureAndShare = async (platform: 'viber' | 'whatsapp' | 'telegram') => {
-    if (!cartSectionRef.current) return;
     setIsCapturing(true);
     setStatusMsg('Նկարը ստեղծվում է...');
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     // Desktop-ում անմիջապես tab բացել (popup block-ից խուսափելու համար)
     const newTab = isMobile ? null : window.open('about:blank', '_blank');
+
+    // Եթե cart-section-ը DOM-ում դեռ մոնտավորված չէ (օր.՝ Կիսվել-ը սեղմվել է
+    // Գլխավոր/Կատեգորիաներ/Ապրանքներ էջից, ոչ թե Զամբյուղից) — նախ անցնել
+    // cart view, թույլ տալ DOM-ին render-վել, ապա նոր փորձել նկարել։
+    if (!cartSectionRef.current && setView) {
+      setView('cart');
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      await new Promise(resolve => setTimeout(resolve, isSafari ? 700 : 400));
+    }
+
+    if (!cartSectionRef.current) {
+      if (newTab) newTab.close();
+      setStatusMsg('Սխալ. զամբյուղը հասանելի չէ');
+      setIsCapturing(false);
+      setTimeout(() => setStatusMsg(''), 2500);
+      return;
+    }
 
     try {
       // Safari fix: inline all images as base64 before html-to-image renders
@@ -1560,15 +1577,14 @@ export default function App() {
 
                   <ShareCartButtons cartSectionRef={cartSectionRef} cart={cart} total={calculateTotal()} onClearCart={() => setCart([])} />
                   <CheckoutForm onSubmit={handleCheckout} isLoading={isCheckingOut} />
-                  {/* Back button — inline for all screen sizes, below checkout form */}
-                  <div className="flex justify-end mt-4 mb-4">
+                  {/* Back button — hidden on mobile, visible from sm breakpoint up, below checkout form */}
+                  <div className="hidden sm:flex justify-end mt-4 mb-4">
                     <button
                       onClick={() => setView(previousView)}
                       className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all active:scale-95 hover:bg-white/10 shrink-0"
                       style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}
                     >
                       <ChevronLeft size={16} />
-                      <span className="sm:hidden">Հետ</span>
                       <span className="hidden sm:inline">Վերադառնալ</span>
                     </button>
                   </div>
@@ -1909,6 +1925,7 @@ export default function App() {
                   cart={cart}
                   total={calculateTotal()}
                   onClearCart={() => { setCart([]); setMobileShareOpen(false); }}
+                  setView={setView}
                 />
               )}
             </motion.div>
