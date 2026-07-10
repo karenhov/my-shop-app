@@ -346,41 +346,93 @@ function ShareCartButtons({ cartSectionRef, cart, total, onClearCart, setView }:
       <p className="text-xs sm:text-sm font-bold flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.6)' }}>
         <Share2 size={14} /> ԿԻՍՎԵԼ ԶԱՄԲՅՈՒՂՈՎ
       </p>
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      {/* Mobile only: app-icon style (squircle icon + label below, like a phone home screen) */}
+      <div className="grid grid-cols-3 gap-3 sm:hidden">
         {/* Viber */}
         <button
           onClick={() => captureAndShare('viber')}
           disabled={isCapturing}
-          className="flex flex-col items-center gap-1.5 py-3 sm:py-4 px-2 rounded-xl transition-all active:scale-95 disabled:opacity-50"
-          style={{ background: '#7360f2' }}
+          className="flex flex-col items-center gap-2 transition-all active:scale-90 disabled:opacity-50"
         >
-          <ViberIcon size={24} />
-          <span className="text-white text-[11px] sm:text-xs font-bold leading-none">Viber</span>
+          <span
+            className="w-16 h-16 rounded-[20px] flex items-center justify-center shadow-lg shadow-black/40"
+            style={{ background: 'linear-gradient(135deg, #9a89f7, #5f3fd6)' }}
+          >
+            <ViberIcon size={32} />
+          </span>
+          <span className="text-white text-xs font-semibold leading-none">Viber</span>
         </button>
         {/* WhatsApp */}
         <button
           onClick={() => captureAndShare('whatsapp')}
           disabled={isCapturing}
-          className="flex flex-col items-center gap-1.5 py-3 sm:py-4 px-2 rounded-xl transition-all active:scale-95 disabled:opacity-50"
+          className="flex flex-col items-center gap-2 transition-all active:scale-90 disabled:opacity-50"
+        >
+          <span
+            className="w-16 h-16 rounded-[20px] flex items-center justify-center shadow-lg shadow-black/40"
+            style={{ background: 'linear-gradient(135deg, #3ee081, #1fa855)' }}
+          >
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="white">
+              <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.48-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51l-.57-.01c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.87 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.69.25-1.28.17-1.41-.07-.12-.27-.2-.57-.34z"/>
+              <path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.37 5.07L2 22l5.1-1.34C8.48 21.53 10.21 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.71 0-3.3-.46-4.67-1.26l-.33-.2-3.03.8.81-2.96-.22-.35C3.46 15.25 3 13.68 3 12c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9z"/>
+            </svg>
+          </span>
+          <span className="text-white text-xs font-semibold leading-none">WhatsApp</span>
+        </button>
+        {/* Telegram */}
+        <button
+          onClick={() => captureAndShare('telegram')}
+          disabled={isCapturing}
+          className="flex flex-col items-center gap-2 transition-all active:scale-90 disabled:opacity-50"
+        >
+          <span
+            className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg shadow-black/40"
+            style={{ background: 'linear-gradient(135deg, #4fc3f7, #1f8fe0)' }}
+          >
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="white">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8l-1.69 7.97c-.12.57-.46.71-.94.44l-2.58-1.9-1.24 1.2c-.14.14-.26.26-.52.26l.18-2.63 4.72-4.27c.2-.18-.05-.28-.32-.1L7.4 14.47l-2.51-.78c-.55-.17-.56-.55.12-.82l9.82-3.79c.46-.17.86.11.81.72z"/>
+            </svg>
+          </span>
+          <span className="text-white text-xs font-semibold leading-none">Telegram</span>
+        </button>
+      </div>
+
+      {/* Tablet / desktop: original layout, unchanged */}
+      <div className="hidden sm:grid grid-cols-3 gap-3">
+        {/* Viber */}
+        <button
+          onClick={() => captureAndShare('viber')}
+          disabled={isCapturing}
+          className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-xl transition-all active:scale-95 disabled:opacity-50"
+          style={{ background: '#7360f2' }}
+        >
+          <ViberIcon size={24} />
+          <span className="text-white text-xs font-bold leading-none">Viber</span>
+        </button>
+        {/* WhatsApp */}
+        <button
+          onClick={() => captureAndShare('whatsapp')}
+          disabled={isCapturing}
+          className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-xl transition-all active:scale-95 disabled:opacity-50"
           style={{ background: '#25d366' }}
         >
           <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
             <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.48-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51l-.57-.01c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.87 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.69.25-1.28.17-1.41-.07-.12-.27-.2-.57-.34z"/>
             <path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.37 5.07L2 22l5.1-1.34C8.48 21.53 10.21 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.71 0-3.3-.46-4.67-1.26l-.33-.2-3.03.8.81-2.96-.22-.35C3.46 15.25 3 13.68 3 12c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9z"/>
           </svg>
-          <span className="text-white text-[11px] sm:text-xs font-bold leading-none">WhatsApp</span>
+          <span className="text-white text-xs font-bold leading-none">WhatsApp</span>
         </button>
         {/* Telegram */}
         <button
           onClick={() => captureAndShare('telegram')}
           disabled={isCapturing}
-          className="flex flex-col items-center gap-1.5 py-3 sm:py-4 px-2 rounded-xl transition-all active:scale-95 disabled:opacity-50"
+          className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-xl transition-all active:scale-95 disabled:opacity-50"
           style={{ background: '#2aabee' }}
         >
           <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8l-1.69 7.97c-.12.57-.46.71-.94.44l-2.58-1.9-1.24 1.2c-.14.14-.26.26-.52.26l.18-2.63 4.72-4.27c.2-.18-.05-.28-.32-.1L7.4 14.47l-2.51-.78c-.55-.17-.56-.55.12-.82l9.82-3.79c.46-.17.86.11.81.72z"/>
           </svg>
-          <span className="text-white text-[11px] sm:text-xs font-bold leading-none">Telegram</span>
+          <span className="text-white text-xs font-bold leading-none">Telegram</span>
         </button>
       </div>
       {isCapturing || statusMsg ? (
@@ -536,20 +588,20 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
         )}
       </span>
 
-      {/* Icon-only կոճակներ */}
+      {/* Icon-only կոճակներ, app-icon տեսք (squircle/circle + gradient + shadow) */}
       <button
         onClick={() => captureAndShare('viber')}
         disabled={isCapturing}
-        className="flex items-center justify-center p-2 rounded-xl active:scale-90 transition-all shrink-0"
-        style={{ background: '#7360f2', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
+        className="flex items-center justify-center rounded-[11px] active:scale-90 transition-all shrink-0 shadow-md shadow-black/40"
+        style={{ background: 'linear-gradient(135deg, #9a89f7, #5f3fd6)', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
       >
         <ViberIcon size={18} />
       </button>
       <button
         onClick={() => captureAndShare('whatsapp')}
         disabled={isCapturing}
-        className="flex items-center justify-center p-2 rounded-xl active:scale-90 transition-all shrink-0"
-        style={{ background: '#25d366', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
+        className="flex items-center justify-center rounded-[11px] active:scale-90 transition-all shrink-0 shadow-md shadow-black/40"
+        style={{ background: 'linear-gradient(135deg, #3ee081, #1fa855)', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
       >
         <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
           <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.48-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51l-.57-.01c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.87 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.69.25-1.28.17-1.41-.07-.12-.27-.2-.57-.34z"/>
@@ -559,8 +611,8 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
       <button
         onClick={() => captureAndShare('telegram')}
         disabled={isCapturing}
-        className="flex items-center justify-center p-2 rounded-xl active:scale-90 transition-all shrink-0"
-        style={{ background: '#2aabee', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
+        className="flex items-center justify-center rounded-full active:scale-90 transition-all shrink-0 shadow-md shadow-black/40"
+        style={{ background: 'linear-gradient(135deg, #4fc3f7, #1f8fe0)', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
       >
         <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8l-1.69 7.97c-.12.57-.46.71-.94.44l-2.58-1.9-1.24 1.2c-.14.14-.26.26-.52.26l.18-2.63 4.72-4.27c.2-.18-.05-.28-.32-.1L7.4 14.47l-2.51-.78c-.55-.17-.56-.55.12-.82l9.82-3.79c.46-.17.86.11.81.72z"/>
