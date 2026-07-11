@@ -386,7 +386,7 @@ function ShareCartButtons({ cartSectionRef, cart, total, onClearCart, setView }:
           className="flex flex-col items-center gap-2 transition-all active:scale-90 disabled:opacity-50"
         >
           <span
-            className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg shadow-black/40"
+            className="w-16 h-16 rounded-[20px] flex items-center justify-center shadow-lg shadow-black/40"
             style={{ background: 'linear-gradient(135deg, #4fc3f7, #1f8fe0)' }}
           >
             <svg viewBox="0 0 24 24" width="32" height="32" fill="white">
@@ -611,7 +611,7 @@ function NavShareButtons({ cartSectionRef, cart, total, setView, onClearCart }: 
       <button
         onClick={() => captureAndShare('telegram')}
         disabled={isCapturing}
-        className="flex items-center justify-center rounded-full active:scale-90 transition-all shrink-0 shadow-md shadow-black/40"
+        className="flex items-center justify-center rounded-[11px] active:scale-90 transition-all shrink-0 shadow-md shadow-black/40"
         style={{ background: 'linear-gradient(135deg, #4fc3f7, #1f8fe0)', opacity: isCapturing ? 0.5 : 1, width: 36, height: 36 }}
       >
         <svg viewBox="0 0 24 24" width="18" height="18" fill="white">
@@ -842,8 +842,8 @@ function MobileBottomNav({
       <div
         className="mx-3 mb-2 rounded-[26px] border border-white/10"
         style={{
-          background: 'rgba(10,10,10,0.97)',
-          boxShadow: '0 -4px 30px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.06)',
+          background: 'rgba(24,26,36,0.90)',
+          boxShadow: '0 -4px 30px rgba(0,0,0,0.45), 0 0 0 0.5px rgba(255,255,255,0.06)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
         }}
@@ -1621,12 +1621,12 @@ export default function App() {
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') validatePromo(promoInput);
                         }}
-                        className="flex-1 bg-black border border-white/10 rounded-xl px-3 sm:px-4 py-2 outline-none focus:border-blue-500 transition-colors text-sm sm:text-base"
+                        className="flex-1 min-w-0 bg-black border border-white/10 rounded-xl px-3 sm:px-4 py-2 outline-none focus:border-blue-500 transition-colors text-sm sm:text-base"
                       />
                       <button
                         onClick={() => validatePromo(promoInput)}
                         disabled={isValidatingPromo}
-                        className="px-3 sm:px-4 py-2 bg-blue-600 rounded-xl font-bold text-xs sm:text-sm hover:bg-blue-500 transition-all disabled:opacity-50"
+                        className="shrink-0 px-3 sm:px-4 py-2 bg-blue-600 rounded-xl font-bold text-xs sm:text-sm hover:bg-blue-500 transition-all disabled:opacity-50"
                       >{isValidatingPromo ? '...' : 'ԿԻՐԱՌԵԼ'}</button>
                     </div>
                     {appliedPromo && <div className="flex justify-between text-xs sm:text-sm text-orange-400"><span>Զեղչ ({appliedPromo.discount_percent}%)</span><button onClick={() => setAppliedPromo(null)} className="underline hover:text-orange-300">Ջնջել</button></div>}
