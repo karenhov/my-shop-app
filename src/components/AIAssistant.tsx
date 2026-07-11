@@ -403,7 +403,7 @@ export function AIAssistant({ products = [], openRef }: { products?: any[]; open
                 animate={{ opacity: 1, x: 0, scale: 1, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, x: 50, scale: 0.95, filter: 'blur(10px)' }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                className="relative w-full h-full sm:w-[400px] sm:h-[calc(100vh-120px)] sm:max-h-[700px] bg-[#09090b] border-none sm:border sm:border-white/10 rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto"
+                className="relative w-full h-full sm:w-[400px] sm:h-[calc(100vh-120px)] sm:max-h-[700px] bg-[#191b25] sm:bg-[#09090b] border-none sm:border sm:border-white/10 rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto"
               >
               <div className="p-4 bg-gradient-to-r from-[#3b82f6] to-[#f97316] flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2 text-white">
