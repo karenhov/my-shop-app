@@ -358,7 +358,7 @@ body {
 
 @media (max-width: 767px) {
   .app-bg-root {
-    background-color: #14161f;
+    background-color: #191b25;
   }
   .app-bg-root::before {
     content: '';
@@ -367,7 +367,7 @@ body {
     z-index: -1;
     pointer-events: none;
     background-image:
-      radial-gradient(ellipse 90% 40% at 50% 0%, rgba(37, 99, 235, 0.18), transparent 60%),
-      radial-gradient(ellipse 70% 45% at 100% 100%, rgba(249, 115, 22, 0.10), transparent 60%);
+      radial-gradient(ellipse 120% 70% at 30% 0%, rgba(37, 99, 235, 0.16), transparent 75%),
+      radial-gradient(ellipse 110% 80% at 100% 100%, rgba(249, 115, 22, 0.10), transparent 75%);
   }
 }
