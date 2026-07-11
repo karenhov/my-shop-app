@@ -1950,7 +1950,7 @@ export default function App() {
               transition={{ type: 'spring', damping: 30, stiffness: 320 }}
               className="absolute bottom-0 left-0 right-0 rounded-t-[2rem] p-6"
               style={{
-                background: 'rgba(12,12,12,0.98)',
+                background: 'rgba(25,27,37,0.98)',
                 borderTop: '1px solid rgba(255,255,255,0.1)',
                 paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 24px)',
               }}
