@@ -206,6 +206,7 @@ body {
 .min-h-screen {
   min-height: 100vh;
   min-height: -webkit-fill-available;
+  min-height: 100dvh;
 }
 html {
   height: -webkit-fill-available;
@@ -364,6 +365,8 @@ body {
     content: '';
     position: fixed;
     inset: 0;
+    height: 100vh;
+    height: 100dvh;
     z-index: -1;
     pointer-events: none;
     background-image:
