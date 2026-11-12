@@ -110,6 +110,34 @@ async function preloadImagesAsBase64(node: HTMLElement): Promise<void> {
   );
 }
 
+// ---- Image optimization: փոքրացնում և սեղմում է նկարները CDN-ով ----
+// Cloudinary-ի cloud name-ը (նույնը, ինչ սերվերի CLOUDINARY_CLOUD_NAME-ը).
+// Եթե սահմանված չէ, ibb.co և այլ արտաքին նկարները մնում են օրիգինալ։
+const CLOUDINARY_CLOUD = (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined) || '';
+
+function optimizeImageUrl(url: string, width = 400, quality: number | string = 'auto'): string {
+  if (!url) return '';
+  if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('/')) return url;
+
+  // Unsplash
+  if (url.includes('unsplash.com')) {
+    const q = typeof quality === 'number' ? quality : 80;
+    return `${url.split('?')[0]}?q=${q}&w=${width}&auto=format&fit=crop`;
+  }
+
+  // Արդեն Cloudinary-ում պահված նկար (/upload/)
+  if (url.includes('res.cloudinary.com') && url.includes('/upload/') && !url.includes('/upload/f_auto')) {
+    return url.replace('/upload/', `/upload/f_auto,q_${quality},w_${width},c_limit/`);
+  }
+
+  // Արտաքին նկար (օր. i.ibb.co) -> Cloudinary fetch (քեշավորվում է CDN-ում, WebP/AVIF, փոքր չափ)
+  if (CLOUDINARY_CLOUD && /^https?:\/\//.test(url) && !url.includes('res.cloudinary.com')) {
+    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD}/image/fetch/f_auto,q_${quality},w_${width},c_limit/${encodeURIComponent(url)}`;
+  }
+
+  return url;
+}
+
 // ---- SmartImage: retry on error, skeleton placeholder, cache-busting ----
 function SmartImage({
   src,
@@ -118,6 +146,8 @@ function SmartImage({
   referrerPolicy,
   crossOrigin,
   style,
+  fallbackSrc,
+  priority = false,
 }: {
   src: string;
   alt?: string;
@@ -125,17 +155,33 @@ function SmartImage({
   referrerPolicy?: React.ImgHTMLAttributes<HTMLImageElement>['referrerPolicy'];
   crossOrigin?: React.ImgHTMLAttributes<HTMLImageElement>['crossOrigin'];
   style?: React.CSSProperties;
+  /** Օրիգինալ URL — եթե օպտիմիզացված տարբերակը չբեռնվի */
+  fallbackSrc?: string;
+  /** true -> անմիջապես բեռնել (էկրանի վերևի կարևոր նկարների համար) */
+  priority?: boolean;
 }) {
   const [loaded, setLoaded] = React.useState(false);
   const [errored, setErrored] = React.useState(false);
-  const retryRef = React.useRef(false);
+  const [currentSrc, setCurrentSrc] = React.useState(src);
+  const attemptRef = React.useRef(0);
 
-  const handleError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    if (!retryRef.current) {
-      retryRef.current = true;
-      // cache-bust — ստիպել browser-ին նորից բեռնել սերվերից
-      const base = src.split('?')[0];
-      e.currentTarget.src = `${base}?_r=${Date.now()}`;
+  // src-ը փոխվելիս սկսել նորից
+  React.useEffect(() => {
+    setCurrentSrc(src);
+    setLoaded(false);
+    setErrored(false);
+    attemptRef.current = 0;
+  }, [src]);
+
+  const handleError = () => {
+    const attempt = attemptRef.current++;
+    if (attempt === 0 && fallbackSrc && fallbackSrc !== currentSrc) {
+      // 1) օպտիմիզացված տարբերակը չբեռնվեց -> փորձել օրիգինալը
+      setCurrentSrc(fallbackSrc);
+    } else if (attempt <= 1) {
+      // 2) cache-bust — ստիպել browser-ին նորից բեռնել սերվերից
+      const base = currentSrc.split('?')[0];
+      setCurrentSrc(`${base}?_r=${Date.now()}`);
     } else {
       setErrored(true);
     }
@@ -156,10 +202,10 @@ function SmartImage({
         </div>
       )}
       <img
-        src={src}
+        src={currentSrc}
         alt={alt}
-        loading="eager"
-        decoding="sync"
+        loading={priority ? 'eager' : 'lazy'}
+        decoding="async"
         referrerPolicy={referrerPolicy}
         crossOrigin={crossOrigin}
         onLoad={() => setLoaded(true)}
@@ -174,7 +220,7 @@ function SmartImage({
 const MOBILE_IMAGE_PREVIEW_DELAY_MS = 350;
 const MOBILE_IMAGE_PREVIEW_CANCEL_DISTANCE_PX = 18;
 
-function MobileLongPressPreview({ isOpen, src, alt }: { isOpen: boolean; src: string; alt: string }) {
+function MobileLongPressPreview({ isOpen, src, alt, fallbackSrc }: { isOpen: boolean; src: string; alt: string; fallbackSrc?: string }) {
   if (typeof document === 'undefined') return null;
 
   return createPortal(
@@ -197,6 +243,8 @@ function MobileLongPressPreview({ isOpen, src, alt }: { isOpen: boolean; src: st
             <div className="overflow-hidden rounded-[2rem] border border-white/15 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
               <SmartImage
                 src={src}
+                fallbackSrc={fallbackSrc}
+                priority
                 alt={alt}
                 className="w-full object-contain bg-black"
                 style={{ height: 'min(72vh, 30rem)' }}
@@ -733,7 +781,7 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
         onPointerLeave={handlePointerFinish}
         onContextMenu={handleContextMenu}
       >
-        <SmartImage src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
+        <SmartImage src={optimizeImageUrl(product.image, 500)} fallbackSrc={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
         <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/60 backdrop-blur-md px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-[10px] font-bold tracking-widest uppercase border border-white/10">{product.code}</div>
       </div>
       <div className="p-3 sm:p-5 flex-1 flex flex-col">
@@ -752,7 +800,7 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
         </div>
       </div>
       </motion.div>
-      <MobileLongPressPreview isOpen={isPreviewVisible} src={product.image} alt={product.name} />
+      <MobileLongPressPreview isOpen={isPreviewVisible} src={optimizeImageUrl(product.image, 900)} fallbackSrc={product.image} alt={product.name} />
     </>
   );
 }
@@ -950,15 +998,6 @@ export default function App() {
   const cartSectionRef = useRef<HTMLDivElement>(null);
   const aiOpenRef = useRef<(() => void) | null>(null);
   const [mobileShareOpen, setMobileShareOpen] = useState(false);
-
-  const optimizeImageUrl = (url: string, width = 400, quality = 80) => {
-    if (!url) return '';
-    if (url.includes('unsplash.com')) {
-      const baseUrl = url.split('?')[0];
-      return `${baseUrl}?q=${quality}&w=${width}&auto=format&fit=crop`;
-    }
-    return url;
-  };
 
   const loadProducts = async () => {
     try {
@@ -1582,7 +1621,7 @@ export default function App() {
                     <h2 className="text-xl sm:text-2xl font-bold px-1">ԶԱՄԲՅՈՒՂ</h2>
                     {cart.map(item => (
                       <div key={item.id} className="flex gap-3 sm:gap-4 bg-white/5 p-3 sm:p-4 rounded-2xl border border-white/5">
-                        <SmartImage src={optimizeImageUrl(item.image, 200)} alt={item.name} className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl shrink-0" referrerPolicy="no-referrer" crossOrigin="anonymous" />
+                        <SmartImage src={optimizeImageUrl(item.image, 200)} fallbackSrc={item.image} alt={item.name} className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl shrink-0" referrerPolicy="no-referrer" crossOrigin="anonymous" />
                         <div className="flex-1 min-w-0">
                           <h3 className="font-bold text-sm sm:text-base truncate">{item.name}</h3>
                           <p className="text-[10px] sm:text-sm text-white/40">Կոդ: {item.code}</p>
@@ -1779,6 +1818,7 @@ export default function App() {
                               <div className="relative shrink-0">
                                 <SmartImage
                                   src={optimizeImageUrl(p.image, 100)}
+                                  fallbackSrc={p.image}
                                   className={`w-16 h-16 object-cover rounded-lg ${p.is_blocked ? 'grayscale' : ''}`}
                                   referrerPolicy="no-referrer"
                                 />
@@ -1837,7 +1877,7 @@ export default function App() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {order.items.map(item => (
                               <div key={item.id} className="flex gap-3 bg-black/30 p-3 rounded-xl border border-white/5">
-                                <SmartImage src={optimizeImageUrl(item.image, 100)} className="w-12 h-12 object-cover rounded-lg" referrerPolicy="no-referrer" />
+                                <SmartImage src={optimizeImageUrl(item.image, 100)} fallbackSrc={item.image} className="w-12 h-12 object-cover rounded-lg" referrerPolicy="no-referrer" />
                                 <div><p className="text-sm font-bold truncate">{item.name}</p><p className="text-[10px] text-white/40">Կոդ: {item.code} | Քանակ: {item.quantity}</p><p className="text-xs text-orange-400">{item.price_at_time.toLocaleString()} ֏</p></div>
                               </div>
                             ))}
