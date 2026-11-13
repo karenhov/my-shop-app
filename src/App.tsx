@@ -206,6 +206,8 @@ function SmartImage({
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
         decoding="async"
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
         referrerPolicy={referrerPolicy}
         crossOrigin={crossOrigin}
         onLoad={() => setLoaded(true)}
@@ -220,7 +222,15 @@ function SmartImage({
 const MOBILE_IMAGE_PREVIEW_DELAY_MS = 350;
 const MOBILE_IMAGE_PREVIEW_CANCEL_DISTANCE_PX = 18;
 
-function MobileLongPressPreview({ isOpen, src, alt, fallbackSrc }: { isOpen: boolean; src: string; alt: string; fallbackSrc?: string }) {
+function MobileLongPressPreview({ isOpen, src, alt, fallbackSrc, placeholderSrc }: { isOpen: boolean; src: string; alt: string; fallbackSrc?: string; placeholderSrc?: string }) {
+  const [bigLoaded, setBigLoaded] = React.useState(false);
+  const [bigSrc, setBigSrc] = React.useState(src);
+
+  React.useEffect(() => {
+    setBigSrc(src);
+    setBigLoaded(false);
+  }, [src]);
+
   if (typeof document === 'undefined') return null;
 
   return createPortal(
@@ -240,16 +250,36 @@ function MobileLongPressPreview({ isOpen, src, alt, fallbackSrc }: { isOpen: boo
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
           >
-            <div className="overflow-hidden rounded-[2rem] border border-white/15 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
-              <SmartImage
-                src={src}
-                fallbackSrc={fallbackSrc}
-                priority
+            <div
+              className="relative overflow-hidden rounded-[2rem] border border-white/15 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+              style={{ height: 'min(72vh, 30rem)' }}
+            >
+              {/* Փոքր նկարը (քարտի նկարը) արդեն բեռնված է՝ երևում է անմիջապես */}
+              {placeholderSrc && (
+                <img
+                  src={placeholderSrc}
+                  alt=""
+                  draggable={false}
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 w-full h-full object-contain"
+                />
+              )}
+              {/* Մեծ նկարը՝ բեռնվելուն պես փոխարինում է փոքրին */}
+              <img
+                src={bigSrc}
                 alt={alt}
-                className="w-full object-contain bg-black"
-                style={{ height: 'min(72vh, 30rem)' }}
+                draggable={false}
+                decoding="async"
                 referrerPolicy="no-referrer"
+                onLoad={() => setBigLoaded(true)}
+                onError={() => {
+                  if (fallbackSrc && bigSrc !== fallbackSrc) setBigSrc(fallbackSrc);
+                }}
+                className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-200 ${bigLoaded ? 'opacity-100' : 'opacity-0'}`}
               />
+              {!bigLoaded && !placeholderSrc && (
+                <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
+              )}
             </div>
           </motion.div>
         </motion.div>
@@ -259,7 +289,6 @@ function MobileLongPressPreview({ isOpen, src, alt, fallbackSrc }: { isOpen: boo
   );
 }
 
-// ---- Viber SVG Icon (official phone + signal waves + speech bubble) ----
 function ViberIcon({ size = 24 }: { size?: number }) {
   return (
     <svg viewBox="0 0 60 70" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
@@ -734,6 +763,15 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
     longPressTriggeredRef.current = false;
     pointerStartRef.current = { x: event.clientX, y: event.clientY };
 
+    // Մինչ 350ms սպասելը՝ սկսել մեծ նկարի բեռնումը, որ preview-ի պահին արդեն պատրաստ լինի
+    try {
+      const pre = new Image();
+      pre.referrerPolicy = 'no-referrer';
+      pre.src = optimizeImageUrl(product.image, 900);
+    } catch {
+      // ignore
+    }
+
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -800,7 +838,7 @@ function ProductCard({ product, onAdd }: { product: Product, onAdd: () => void, 
         </div>
       </div>
       </motion.div>
-      <MobileLongPressPreview isOpen={isPreviewVisible} src={optimizeImageUrl(product.image, 900)} fallbackSrc={product.image} alt={product.name} />
+      <MobileLongPressPreview isOpen={isPreviewVisible} src={optimizeImageUrl(product.image, 900)} fallbackSrc={product.image} placeholderSrc={optimizeImageUrl(product.image, 500)} alt={product.name} />
     </>
   );
 }
