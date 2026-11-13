@@ -164,6 +164,7 @@ function SmartImage({
   const [errored, setErrored] = React.useState(false);
   const [currentSrc, setCurrentSrc] = React.useState(src);
   const attemptRef = React.useRef(0);
+  const imgRef = React.useRef<HTMLImageElement | null>(null);
 
   // src-ը փոխվելիս սկսել նորից
   React.useEffect(() => {
@@ -172,6 +173,15 @@ function SmartImage({
     setErrored(false);
     attemptRef.current = 0;
   }, [src]);
+
+  // Քեշից արդեն բեռնված նկարը կարող է "complete" լինել նախքան React-ի onLoad-ը կապվելը.
+  // այդ դեպքում onLoad չի կրակի և նկարը կմնար անտեսանելի։ Ստուգում ենք ձեռքով։
+  React.useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) {
+      setLoaded(true);
+    }
+  }, [currentSrc, src]);
 
   const handleError = () => {
     const attempt = attemptRef.current++;
@@ -202,6 +212,7 @@ function SmartImage({
         </div>
       )}
       <img
+        ref={imgRef}
         src={currentSrc}
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
