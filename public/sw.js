@@ -1,7 +1,7 @@
 const CACHE_NAME = "my-shop-shell-v1";
 // Նկարների առանձին քեշ (ibb.co, cloudinary, unsplash և այլն)
-const IMAGE_CACHE = "my-shop-images-v1";
-const IMAGE_CACHE_MAX_ENTRIES = 400;
+const IMAGE_CACHE = "my-shop-images-v2";
+const IMAGE_CACHE_MAX_ENTRIES = 150;
 // Այս պարամետրերը միայն "քեշը շրջանցելու" համար են, քեշի բանալուց հանվում են
 const BUST_PARAMS = ["_r", "_eager", "_safari_cb"];
 
@@ -12,10 +12,12 @@ function isImageRequest(request, url) {
   );
 }
 
-function imageCacheKey(url) {
+function imageCacheKey(request, url) {
   const clean = new URL(url.toString());
   BUST_PARAMS.forEach((p) => clean.searchParams.delete(p));
   clean.hash = "";
+  // CORS և no-CORS պատասխանները տարբեր են, դրանք չպետք է խառնվեն
+  clean.searchParams.set("__sw_mode", request.mode === "cors" ? "cors" : "nocors");
   return clean.toString();
 }
 
@@ -28,53 +30,36 @@ async function trimImageCache(cache) {
 }
 
 async function handleImage(event, url) {
-  const cache = await caches.open(IMAGE_CACHE);
-  const key = imageCacheKey(url);
-  // Եթե նկարը չի բեռնվել/կիսատ է եղել, SmartImage-ը ավելացնում է ?_r=... -> քեշը շրջանցում ենք և թարմացնում
+  const request = event.request;
+  const key = imageCacheKey(request, url);
+  // SmartImage-ը ձախողման դեպքում ավելացնում է ?_r=... -> քեշը շրջանցում ենք և թարմացնում
   const forceRefresh = BUST_PARAMS.some((p) => url.searchParams.has(p));
 
-  if (!forceRefresh) {
-    const cached = await cache.match(key);
-    if (cached) return cached; // ակնթարթային, առանց ցանցի
+  let cache;
+  try {
+    cache = await caches.open(IMAGE_CACHE);
+    if (!forceRefresh) {
+      const cached = await cache.match(key);
+      if (cached) return cached;
+    }
+  } catch (e) {
+    return fetch(request);
   }
 
-  try {
-    // CORS-ով ենք բեռնում, որ պատասխանը "թափանցիկ" (opaque) չլինի և կարողանանք ստուգել status-ը
-    const response = await fetch(key, {
-      mode: "cors",
-      credentials: "omit",
-      referrerPolicy: "no-referrer",
-      cache: forceRefresh ? "reload" : "default",
-    });
-    if (response.ok) {
-      // cache.put-ը կարդում է ամբողջ body-ն. եթե բեռնումը կիսատ մնա, այն կմերժվի և կիսատ նկար չի պահվի
-      event.waitUntil(
-        cache
-          .put(key, response.clone())
-          .then(() => trimImageCache(cache))
-          .catch(() => undefined),
-      );
-    }
-    return response;
-  } catch (error) {
-    // CORS չաջակցող աղբյուր կամ ցանցի սխալ -> հին քեշված տարբերակը, հակառակ դեպքում սովորական բեռնում
-    const stale = await cache.match(key);
-    if (stale) return stale;
-    return fetch(event.request);
+  // Բեռնում ենք ճիշտ նույն հարցումով, ինչ browser-ը կաներ առանց service worker-ի
+  const response = await fetch(request);
+  // Քեշավորում ենք միայն հաջող (կամ opaque cross-origin) պատասխանները.
+  // cache.put-ը կարդում է ամբողջ body-ն, ուստի կիսատ բեռնվածը չի պահվի
+  if (response && (response.ok || response.type === "opaque")) {
+    event.waitUntil(
+      cache
+        .put(key, response.clone())
+        .then(() => trimImageCache(cache))
+        .catch(() => undefined),
+    );
   }
+  return response;
 }
-const APP_SHELL = [
-  "/",
-  "/manifest.webmanifest",
-  "/favicon.ico",
-  "/favicon-16x16.png",
-  "/favicon-32x32.png",
-  "/apple-touch-icon.png",
-  "/pwa-192x192.png",
-  "/pwa-512x512.png",
-  "/maskable-icon-192x192.png",
-  "/maskable-icon-512x512.png",
-];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
