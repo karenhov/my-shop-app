@@ -46,8 +46,22 @@ async function handleImage(event, url) {
     return fetch(request);
   }
 
-  // Բեռնում ենք ճիշտ նույն հարցումով, ինչ browser-ը կաներ առանց service worker-ի
-  const response = await fetch(request);
+  let response;
+  try {
+    // 1) CORS-ով՝ որ կարողանանք ստուգել status-ը և սխալ պատասխան չպահենք
+    const cleanUrl = new URL(url.toString());
+    BUST_PARAMS.forEach((p) => cleanUrl.searchParams.delete(p));
+    response = await fetch(cleanUrl.toString(), {
+      mode: "cors",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+      cache: forceRefresh ? "reload" : "default",
+    });
+    if (!response.ok) throw new Error("bad status " + response.status);
+  } catch (e) {
+    // 2) CORS չաջակցող աղբյուր կամ սխալ -> սովորական հարցում (opaque պատասխան)
+    response = await fetch(request);
+  }
   // Քեշավորում ենք միայն հաջող (կամ opaque cross-origin) պատասխանները.
   // cache.put-ը կարդում է ամբողջ body-ն, ուստի կիսատ բեռնվածը չի պահվի
   if (response && (response.ok || response.type === "opaque")) {
