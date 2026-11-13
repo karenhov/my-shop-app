@@ -61,6 +61,19 @@ async function handleImage(event, url) {
   return response;
 }
 
+const APP_SHELL = [
+  "/",
+  "/manifest.webmanifest",
+  "/favicon.ico",
+  "/favicon-16x16.png",
+  "/favicon-32x32.png",
+  "/apple-touch-icon.png",
+  "/pwa-192x192.png",
+  "/pwa-512x512.png",
+  "/maskable-icon-192x192.png",
+  "/maskable-icon-512x512.png",
+];
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
