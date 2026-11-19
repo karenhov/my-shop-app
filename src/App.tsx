@@ -926,7 +926,7 @@ function MobileBottomNav({
   const items = [
     { id: 'home',  label: 'Գլխավոր', icon: <Home size={22} />,        onClick: () => setView('home') },
     { id: 'share', label: 'Կիսվել',  icon: <Share2 size={22} />,       onClick: onShareOpen },
-    { id: 'ai',    label: 'ԱԻ',       icon: <Bot size={22} />,           onClick: () => aiOpenRef.current?.() },
+    { id: 'ai',    label: 'ԱԲ',       icon: <Bot size={22} />,           onClick: () => aiOpenRef.current?.() },
     { id: 'cart',  label: 'Զամբյուղ',  icon: <ShoppingCart size={22} />, badge: cartCount, onClick: navigateToCart },
     { id: 'admin', label: 'Ադմին',   icon: <User size={22} />,          onClick: () => setView('admin') },
   ];
